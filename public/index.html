@@ -37,7 +37,9 @@
     <p class="note">Then fine-tune below. Tap a time, or swipe across a row to grab several.</p>
   </section>
 
-  <section class="panel days" id="days"></section>
+  <section class="panel days" id="days">
+    <p class="leadkey" id="leadKey" hidden>★ Most picked so far. Prioritize these if you can.</p>
+  </section>
 </main>
 
 <main id="after" hidden>
@@ -154,6 +156,23 @@ const fixName = () => {
   $("msg").className = "note"; $("msg").textContent = typed && !m.name ? offList(m.close) : "";
   save(); return m;
 };
+// Stars the most picked times so far, once at least two people share one, so everyone knows which to prioritize.
+const showLeaders = ({ teams, counts }) => {
+  const top = Math.max(0, ...slots.map(b => counts[b.dataset.id] || 0)), on = top >= 2;
+  slots.forEach(b => {
+    const lead = on && counts[b.dataset.id] === top; let s = b.querySelector("small");
+    b.classList.toggle("lead", lead);
+    if (lead && !s) s = b.appendChild(document.createElement("small"));
+    if (lead) s.textContent = "★ " + top + " of " + teams; else if (s) s.remove();
+  });
+  $("leadKey").hidden = !on;
+};
+const loadStandings = async () => {
+  const r = await fetch("/api/standings");
+  if (!r.ok) throw new Error("Load failed");
+  const s = await r.json(); showLeaders(s); return s;
+};
+loadStandings().catch(() => {});
 $("name").oninput = save;
 $("name").onchange = fixName;
 if ($("name").value) fixName();
@@ -186,9 +205,7 @@ async function showStandings() {
   note.className = "note done"; note.textContent = "You're in. Loading the top times..."; best.textContent = "";
   view(true);
   try {
-    const r = await fetch("/api/standings");
-    if (!r.ok) throw new Error("Load failed");
-    const { teams, counts } = await r.json();
+    const { teams, counts } = await loadStandings();
     note.textContent = "You're in. " + teams + " of " + LEAGUE + " teams have picked.";
     Object.keys(counts).filter(id => valid.has(id))
       .sort((a, b) => counts[b] - counts[a] || a.localeCompare(b)).slice(0, 5).forEach(id => {
