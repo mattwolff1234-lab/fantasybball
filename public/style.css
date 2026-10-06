@@ -1,4 +1,4 @@
-/* Layout: dark league bar on top, then white cards on a grey field. Each day is a block of big tap targets; Confirm stays docked at the bottom. */
+/* Layout: dark league bar on top, then white cards on a grey field. Each day is a block of big tap targets; Confirm stays pinned under the bar. */
 :root{
   --bg:#edeef0; --panel:#ffffff; --ink:#2b2c2d; --muted:#6c6d6f; --line:#dcdddf;
   --bar:#151617; --bar-ink:#ffffff; --accent:#0066cc; --accent-ink:#ffffff;
@@ -19,7 +19,7 @@
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 14px/1.4 var(--sans);padding-inline:16px;padding-block:0 48px}
-body.docked{padding-bottom:calc(120px + env(safe-area-inset-bottom))}
+[hidden]{display:none!important}
 .bar{background:var(--bar);color:var(--bar-ink);margin-inline:-16px;padding:16px}
 .bar div{max-width:640px;margin-inline:auto}
 h1{font:700 20px/1.2 var(--sans);margin:0;text-wrap:balance}
@@ -52,17 +52,19 @@ input[type=text]{width:100%;font:inherit;font-size:16px;color:var(--ink);backgro
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .row h2{flex:1 1 100%}
 .note{font-size:13px;color:var(--muted)}
-.dock{position:fixed;inset:auto 0 0;background:var(--panel);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+/* Sticks to the top, not the bottom: phone browser toolbars cover bottom-pinned bars while scrolling. */
+.dock{position:sticky;top:0;z-index:2;margin-inline:-16px;background:var(--panel);border-bottom:1px solid var(--line);padding:8px 16px}
 .dock>div{max-width:640px;margin-inline:auto;display:flex;gap:12px;align-items:center;justify-content:space-between}
 .status{display:flex;flex-direction:column;gap:2px;min-width:0}
 .status b{font-size:15px;font-variant-numeric:tabular-nums}
-.dock .btn{align-self:center;flex:none;font-size:15px;padding:14px 28px}
+.dock .btn{align-self:center;flex:none;font-size:15px;padding:12px 24px}
 .best{display:flex;flex-direction:column;margin:0 -14px;padding:0;list-style:none}
 .best li{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline;justify-content:space-between;padding:9px 14px;border-top:1px solid var(--line)}
 .best li:first-child{border-top:0;padding-top:0}
 .best b{font-size:14px}
 .best .ct{font-weight:700;color:var(--on-ink);font-variant-numeric:tabular-nums}
 .best .out{flex-basis:100%;font-size:12px;color:var(--muted)}
+.best .yours{color:var(--on-ink);font-weight:700}
 .who{display:flex;flex-wrap:wrap;gap:6px}
 .who span{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:999px;padding:3px 5px 3px 11px}
 .done{color:var(--on-ink);font-weight:700}

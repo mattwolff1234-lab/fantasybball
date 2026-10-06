@@ -7,12 +7,19 @@
 <meta name="description" content="Pick every time you can make the fantasy basketball draft.">
 <link rel="stylesheet" href="/style.css">
 </head>
-<body class="docked">
+<body>
 <div class="bar"><div>
   <h1>Draft Scheduling</h1>
   <p class="sub">Pick every time you can make · all times ET</p>
 </div></div>
-<main>
+<div class="dock" id="dock"><div>
+  <div class="status">
+    <b id="count"></b>
+    <span class="note" id="msg" role="status"></span>
+  </div>
+  <button class="btn" id="confirm" type="button">Confirm</button>
+</div></div>
+<main id="picker">
   <section class="panel">
     <div>
       <label for="name">Your name</label>
@@ -31,17 +38,20 @@
   <section class="panel days" id="days"></section>
 </main>
 
-<div class="dock"><div>
-  <div class="status">
-    <b id="count"></b>
-    <span class="note" id="msg" role="status"></span>
-  </div>
-  <button class="btn" id="confirm" type="button">Confirm</button>
-</div></div>
+<main id="after" hidden>
+  <section class="panel">
+    <h2>Top times so far</h2>
+    <span class="note" id="inCount" role="status"></span>
+    <ul class="best" id="best"></ul>
+  </section>
+  <section class="panel">
+    <div class="row"><button class="btn quiet" id="edit" type="button">Change my picks</button></div>
+  </section>
+</main>
 
 <script src="/slots.js"></script>
 <script>
-const { days, hr, valid } = window.DRAFT;
+const { days, hr, valid, label, LEAGUE } = window.DRAFT;
 const $ = id => document.getElementById(id);
 let mine = new Set();
 try { const s = JSON.parse(localStorage.getItem("draft-picks") || "{}");
@@ -138,13 +148,39 @@ $("confirm").onclick = async () => {
     const r = await fetch("/api/submit", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, slots: [...mine] }) });
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Save failed");
-    msg.className = "note done";
-    msg.textContent = "You're in. Change picks and confirm again anytime.";
+    msg.textContent = "";
+    showStandings();
   } catch (e) {
     msg.className = "note err";
     msg.textContent = "Couldn't save. Check your connection and try again.";
   } finally { $("confirm").disabled = false; }
 };
+
+// After a save: swap the picker for the league-wide tally, most picked times first.
+const view = after => { $("picker").hidden = $("dock").hidden = after; $("after").hidden = !after; scrollTo(0, 0); };
+async function showStandings() {
+  const note = $("inCount"), best = $("best");
+  note.className = "note done"; note.textContent = "You're in. Loading the top times..."; best.textContent = "";
+  view(true);
+  try {
+    const r = await fetch("/api/standings");
+    if (!r.ok) throw new Error("Load failed");
+    const { teams, counts } = await r.json();
+    note.textContent = "You're in. " + teams + " of " + LEAGUE + " teams have picked.";
+    Object.keys(counts).filter(id => valid.has(id))
+      .sort((a, b) => counts[b] - counts[a] || a.localeCompare(b)).slice(0, 5).forEach(id => {
+        const li = document.createElement("li");
+        const b = document.createElement("b"); b.textContent = label(id);
+        const ct = document.createElement("span"); ct.className = "ct"; ct.textContent = counts[id] + " of " + teams;
+        const o = document.createElement("span"); o.className = "out" + (mine.has(id) ? " yours" : "");
+        o.textContent = mine.has(id) ? "You picked this" : "Not one of your picks";
+        li.append(b, ct, o); best.appendChild(li);
+      });
+  } catch (e) {
+    note.textContent = "You're in. Couldn't load the top times right now.";
+  }
+}
+$("edit").onclick = () => view(false);
 </script>
 </body>
 </html>
