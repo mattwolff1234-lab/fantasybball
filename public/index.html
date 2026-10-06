@@ -156,16 +156,18 @@ const fixName = () => {
   $("msg").className = "note"; $("msg").textContent = typed && !m.name ? offList(m.close) : "";
   save(); return m;
 };
-// Stars the most picked times so far, once at least two people share one, so everyone knows which to prioritize.
+// Stars the three most picked times so far (plus any tied with third) so everyone knows which to prioritize.
+// A time needs at least two people before it counts.
 const showLeaders = ({ teams, counts }) => {
-  const top = Math.max(0, ...slots.map(b => counts[b.dataset.id] || 0)), on = top >= 2;
+  const n = b => counts[b.dataset.id] || 0;
+  const cut = Math.max(2, slots.map(n).sort((x, y) => y - x)[2] || 0);
   slots.forEach(b => {
-    const lead = on && counts[b.dataset.id] === top; let s = b.querySelector("small");
+    const lead = n(b) >= cut; let s = b.querySelector("small");
     b.classList.toggle("lead", lead);
     if (lead && !s) s = b.appendChild(document.createElement("small"));
-    if (lead) s.textContent = "★ " + top + " of " + teams; else if (s) s.remove();
+    if (lead) s.textContent = "★ " + n(b) + " of " + teams; else if (s) s.remove();
   });
-  $("leadKey").hidden = !on;
+  $("leadKey").hidden = !slots.some(b => n(b) >= cut);
 };
 const loadStandings = async () => {
   const r = await fetch("/api/standings");
