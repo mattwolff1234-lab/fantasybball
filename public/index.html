@@ -59,6 +59,11 @@ const $ = id => document.getElementById(id);
 let mine = new Set();
 try { const s = JSON.parse(localStorage.getItem("draft-picks") || "{}");
   mine = new Set((s.slots || []).filter(x => valid.has(x))); $("name").value = s.name || ""; } catch (e) {}
+// Random id for this browser. The server ties a name to the first device that sends picks for it.
+let token = "";
+try { token = localStorage.getItem("draft-token") || ""; } catch (e) {}
+if (!token) { token = crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
+  try { localStorage.setItem("draft-token", token); } catch (e) {} }
 const save = () => { try { localStorage.setItem("draft-picks",
   JSON.stringify({ name: $("name").value, slots: [...mine] })); } catch (e) {} };
 
@@ -163,7 +168,7 @@ $("confirm").onclick = async () => {
   $("confirm").disabled = true; msg.textContent = "Saving...";
   try {
     const r = await fetch("/api/submit", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, slots: [...mine] }) });
+      body: JSON.stringify({ name, slots: [...mine], token }) });
     if (!r.ok) throw Object.assign(new Error("Save failed"),
       { reason: r.status < 500 && (await r.json().catch(() => ({}))).error });
     msg.textContent = "";

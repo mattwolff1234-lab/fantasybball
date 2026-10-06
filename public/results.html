@@ -33,6 +33,7 @@
   <section class="panel" id="people" hidden>
     <h2>Who's in</h2>
     <div class="who" id="who"></div>
+    <span class="note">Picks are locked to the phone that first sent them. Unlock a name if someone switches devices, or if the wrong person used it.</span>
     <div class="row"><button class="btn quiet" id="refresh" type="button">Refresh</button></div>
   </section>
 </main>
@@ -76,7 +77,17 @@ async function load() {
     best.appendChild(li);
   });
   const who = $("who"); who.textContent = "";
-  responses.forEach(p => { const s = document.createElement("span"); s.style.paddingRight = "11px"; s.textContent = p.name; who.appendChild(s); });
+  responses.forEach(p => {
+    const s = document.createElement("span"); s.textContent = p.name;
+    // Unlocking lets that person send picks from a different phone or browser.
+    if (p.locked) { const b = document.createElement("button"); b.type = "button"; b.textContent = "Unlock";
+      b.onclick = async () => { b.disabled = true;
+        await fetch("/api/unlock", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, name: p.name }) }).catch(() => null);
+        load(); };
+      s.appendChild(b); }
+    else s.style.paddingRight = "11px";
+    who.appendChild(s); });
 }
 $("go").onclick = load;
 $("refresh").onclick = load;

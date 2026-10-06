@@ -10,5 +10,9 @@ The commissioner sees the most picked times at `/results` (needs the results key
 - `public/names.js` - league roster and typo matching (used by the picker and the API)
 - `api/submit.js`, `api/results.js` - save and read picks (Vercel Blob)
 - `api/standings.js` - public count per time, shown after Confirm
+- `api/unlock.js` - commissioner only: lets someone send picks from a new device
+
+A name is locked to the first device that sends picks for it, so nobody else can overwrite them.
+The commissioner can unlock a name from `/results`.
 
 Hosted on Vercel. Needs a Blob store connected to the project (`BLOB_READ_WRITE_TOKEN`).

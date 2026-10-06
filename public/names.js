@@ -1,5 +1,14 @@
-// League roster: the only names that count. Shared by the picker (browser) and the API.
-export const NAMES = ["Matt", "Glickman", "Mack", "Ben", "Koren", "Sammy", "Sean", "Karan", "Max", "Dean", "Matthew", "Sam"];
+// League roster: the only people whose picks count. Shared by the picker (browser) and the API.
+// First entry is the name shown and saved; the rest are other spellings that mean the same person.
+const ROSTER = [
+  ["Matt", "Matthew"],
+  ["Glickman", "Matt G", "Matt Glickman"],
+  ["Sammy", "Sam"],
+  ["Dean"], ["Ben"], ["Karan"], ["Sean"], ["Max"], ["Mack"], ["Koren"],
+];
+export const NAMES = ROSTER.map(r => r[0]);
+const norm = s => String(s || "").toLowerCase().replace(/[^a-z]/g, "");
+const SPELLINGS = ROSTER.flatMap(r => r.map(s => ({ s: norm(s), name: r[0] })));
 
 // Edit distance where two swapped letters count as one mistake.
 function distance(a, b) {
@@ -13,16 +22,16 @@ function distance(a, b) {
 }
 
 // Resolves what someone typed to a roster name. An exact match (any case) wins. Otherwise a typo is fixed
-// only when exactly one name is closest; "Karen" could be Karan or Koren, so it comes back unresolved
+// only when exactly one person is closest; "Karen" could be Karan or Koren, so it comes back unresolved
 // with both in `close`. Short names allow one mistake, longer ones two; a clear prefix ("Glick") also counts.
 export function matchName(input) {
-  const t = String(input || "").toLowerCase().replace(/[^a-z]/g, "");
+  const t = norm(input);
   if (!t) return { name: null, close: [] };
-  const exact = NAMES.find(n => n.toLowerCase() === t);
-  if (exact) return { name: exact, close: [exact] };
-  const near = NAMES.map(n => ({ n, d: distance(t, n.toLowerCase()) })).filter(x => x.d <= (x.n.length > 4 ? 2 : 1));
+  const exact = SPELLINGS.find(x => x.s === t);
+  if (exact) return { name: exact.name, close: [exact.name] };
+  const near = SPELLINGS.map(x => ({ name: x.name, d: distance(t, x.s), max: x.s.length > 4 ? 2 : 1 })).filter(x => x.d <= x.max);
   const best = Math.min(...near.map(x => x.d));
-  let close = near.filter(x => x.d === best).map(x => x.n);
-  if (!close.length && t.length >= 3) close = NAMES.filter(n => n.toLowerCase().startsWith(t));
+  let close = [...new Set(near.filter(x => x.d === best).map(x => x.name))];
+  if (!close.length && t.length >= 3) close = [...new Set(SPELLINGS.filter(x => x.s.startsWith(t)).map(x => x.name))];
   return { name: close.length === 1 ? close[0] : null, close };
 }
