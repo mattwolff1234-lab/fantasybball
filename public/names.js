@@ -1,8 +1,9 @@
 // League roster: the only people whose picks count. Shared by the picker (browser) and the API.
 // First entry is the name shown and saved; the rest are other spellings that mean the same person.
 const ROSTER = [
-  ["Matt", "Matthew"],
-  ["Glickman", "Matt G", "Matt Glickman"],
+  // Two Matts: plain "Matt" or "Matthew" belongs to both, so it never resolves and the picker asks which one.
+  ["Matt W", "Matthew W", "Matt", "Matthew"],
+  ["Matt G", "Matthew G", "Glickman", "Matt Glickman", "Matt", "Matthew"],
   ["Sammy", "Sam"],
   ["Dean"], ["Ben"], ["Karan"], ["Sean"], ["Max"], ["Mack"], ["Koren"],
 ];
@@ -21,14 +22,14 @@ function distance(a, b) {
   return d[a.length][b.length];
 }
 
-// Resolves what someone typed to a roster name. An exact match (any case) wins. Otherwise a typo is fixed
-// only when exactly one person is closest; "Karen" could be Karan or Koren, so it comes back unresolved
+// Resolves what someone typed to a roster name. An exact match (any case) wins, unless two people share
+// that spelling. Otherwise a typo is fixed only when exactly one person is closest; "Karen" could be Karan or Koren, so it comes back unresolved
 // with both in `close`. Short names allow one mistake, longer ones two; a clear prefix ("Glick") also counts.
 export function matchName(input) {
   const t = norm(input);
   if (!t) return { name: null, close: [] };
-  const exact = SPELLINGS.find(x => x.s === t);
-  if (exact) return { name: exact.name, close: [exact.name] };
+  const exact = SPELLINGS.filter(x => x.s === t).map(x => x.name);
+  if (exact.length) return { name: exact.length === 1 ? exact[0] : null, close: exact };
   const near = SPELLINGS.map(x => ({ name: x.name, d: distance(t, x.s), max: x.s.length > 4 ? 2 : 1 })).filter(x => x.d <= x.max);
   const best = Math.min(...near.map(x => x.d));
   let close = [...new Set(near.filter(x => x.d === best).map(x => x.name))];

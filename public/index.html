@@ -26,6 +26,7 @@
       <label for="name">Your name</label>
       <input type="text" id="name" maxlength="24" autocomplete="off" autocapitalize="words" list="roster">
       <datalist id="roster"></datalist>
+      <div class="fielderr" id="nameErr" role="alert" hidden></div>
     </div>
   </section>
 
@@ -147,13 +148,20 @@ wrap.addEventListener("click", e => {
 });
 // Only roster names count. A typo is corrected in place once the field loses focus; anything else gets a hint.
 NAMES.forEach(n => $("roster").appendChild(new Option(n)));
-const offList = close => close.length > 1
-  ? "Did you mean " + close.slice(0, -1).join(", ") + " or " + close[close.length - 1] + "?"
-  : "That name isn't on the league list.";
+// A wrong name turns the field red with the reason right under it; when it could be a few people, they're one tap away.
+const nameError = (text, choices = []) => {
+  const err = $("nameErr"); err.textContent = text; err.hidden = !text;
+  $("name").classList.toggle("bad", !!text); $("name").setAttribute("aria-invalid", !!text);
+  choices.forEach(n => { const b = document.createElement("button"); b.type = "button"; b.className = "pick"; b.textContent = n;
+    b.onclick = () => { $("name").value = n; fixName(); }; err.appendChild(b); });
+};
 const fixName = () => {
   const typed = $("name").value.trim(), m = matchName(typed);
   if (m.name) $("name").value = m.name;
-  $("msg").className = "note"; $("msg").textContent = typed && !m.name ? offList(m.close) : "";
+  if (!typed || m.name) nameError("");
+  else if (m.close.length) nameError("Which one are you?", m.close);
+  else nameError("⚠ “" + typed + "” isn't on the league list. Check the spelling.");
+  $("msg").textContent = "";
   save(); return m;
 };
 // Stars the three most picked times so far (plus any tied with third) so everyone knows which to prioritize.
@@ -175,16 +183,20 @@ const loadStandings = async () => {
   const s = await r.json(); showLeaders(s); return s;
 };
 loadStandings().catch(() => {});
-$("name").oninput = save;
+$("name").oninput = () => { nameError(""); save(); };
 $("name").onchange = fixName;
 if ($("name").value) fixName();
 render();
 
 $("confirm").onclick = async () => {
   const msg = $("msg");
-  if (!$("name").value.trim()) { msg.className = "note"; msg.textContent = "Add your name first."; $("name").focus(); return; }
   const { name } = fixName();
-  if (!name) { $("name").focus(); return; }
+  if (!name) {
+    if (!$("name").value.trim()) nameError("⚠ Add your name first.");
+    msg.className = "note err"; msg.textContent = "Fix your name first.";
+    $("name").scrollIntoView({ block: "center" }); $("name").focus({ preventScroll: true }); return;
+  }
+  msg.className = "note";
   if (!mine.size) { msg.textContent = "Pick at least one time."; return; }
   $("confirm").disabled = true; msg.textContent = "Saving...";
   try {
