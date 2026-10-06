@@ -24,7 +24,8 @@
   <section class="panel">
     <div>
       <label for="name">Your name</label>
-      <input type="text" id="name" maxlength="24" autocomplete="off">
+      <input type="text" id="name" maxlength="24" autocomplete="off" autocapitalize="words" list="roster">
+      <datalist id="roster"></datalist>
     </div>
   </section>
 
@@ -51,7 +52,8 @@
 </main>
 
 <script src="/slots.js"></script>
-<script>
+<script type="module">
+import { NAMES, matchName } from "/names.js";
 const { days, hr, valid, label, LEAGUE } = window.DRAFT;
 const $ = id => document.getElementById(id);
 let mine = new Set();
@@ -136,24 +138,39 @@ wrap.addEventListener("click", e => {
   if (skipClick) { skipClick = false; return; }
   set(b.dataset.id, !mine.has(b.dataset.id));
 });
+// Only roster names count. A typo is corrected in place once the field loses focus; anything else gets a hint.
+NAMES.forEach(n => $("roster").appendChild(new Option(n)));
+const offList = close => close.length > 1
+  ? "Did you mean " + close.slice(0, -1).join(", ") + " or " + close[close.length - 1] + "?"
+  : "That name isn't on the league list.";
+const fixName = () => {
+  const typed = $("name").value.trim(), m = matchName(typed);
+  if (m.name) $("name").value = m.name;
+  $("msg").className = "note"; $("msg").textContent = typed && !m.name ? offList(m.close) : "";
+  save(); return m;
+};
 $("name").oninput = save;
+$("name").onchange = fixName;
+if ($("name").value) fixName();
 render();
 
 $("confirm").onclick = async () => {
-  const name = $("name").value.trim(), msg = $("msg");
-  msg.className = "note";
-  if (!name) { msg.textContent = "Add your name first."; $("name").focus(); return; }
+  const msg = $("msg");
+  if (!$("name").value.trim()) { msg.className = "note"; msg.textContent = "Add your name first."; $("name").focus(); return; }
+  const { name } = fixName();
+  if (!name) { $("name").focus(); return; }
   if (!mine.size) { msg.textContent = "Pick at least one time."; return; }
   $("confirm").disabled = true; msg.textContent = "Saving...";
   try {
     const r = await fetch("/api/submit", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, slots: [...mine] }) });
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Save failed");
+    if (!r.ok) throw Object.assign(new Error("Save failed"),
+      { reason: r.status < 500 && (await r.json().catch(() => ({}))).error });
     msg.textContent = "";
     showStandings();
   } catch (e) {
     msg.className = "note err";
-    msg.textContent = "Couldn't save. Check your connection and try again.";
+    msg.textContent = e.reason || "Couldn't save right now. Try again in a minute.";
   } finally { $("confirm").disabled = false; }
 };
 

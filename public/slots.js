@@ -18,5 +18,5 @@ window.DRAFT = (function () {
   const valid = new Set(days.flatMap(d => d.hours.map(h => d.key + "-" + h)));
   const label = id => { const [k, h] = id.split("-"); const d = days.find(x => x.key === k);
     return d ? d.dow + " " + d.label + ", " + hr(+h) : id; };
-  return { days, hr, valid, label, LEAGUE: 10 };
+  return { days, hr, valid, label, LEAGUE: 12 };
 })();

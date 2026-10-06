@@ -7,6 +7,7 @@ The commissioner sees the most picked times at `/results` (needs the results key
 - `public/index.html` - the picker
 - `public/results.html` - commissioner results
 - `public/slots.js` - draft dates and time options
+- `public/names.js` - league roster and typo matching (used by the picker and the API)
 - `api/submit.js`, `api/results.js` - save and read picks (Vercel Blob)
 - `api/standings.js` - public count per time, shown after Confirm
 
