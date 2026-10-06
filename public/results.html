@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Draft Results</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="bar"><div>
+  <h1>Draft Results</h1>
+  <p class="sub">Commissioner view · most picked times first</p>
+</div></div>
+<main>
+  <section class="panel" id="login">
+    <div>
+      <label for="key">Results key</label>
+      <input type="text" id="key" autocomplete="off">
+    </div>
+    <div class="row">
+      <button class="btn" id="go" type="button">View results</button>
+      <span class="note" id="msg" role="status"></span>
+    </div>
+  </section>
+
+  <section class="panel" id="tally" hidden>
+    <h2>Most picked times</h2>
+    <span class="note" id="inCount"></span>
+    <ul class="best" id="best"></ul>
+  </section>
+
+  <section class="panel" id="people" hidden>
+    <h2>Who's in</h2>
+    <div class="who" id="who"></div>
+    <div class="row"><button class="btn quiet" id="refresh" type="button">Refresh</button></div>
+  </section>
+</main>
+
+<script src="/slots.js"></script>
+<script>
+const { label, LEAGUE } = window.DRAFT;
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+let key = params.get("key") || "";
+try { key = key || localStorage.getItem("draft-key") || ""; } catch (e) {}
+$("key").value = key;
+
+async function load() {
+  key = $("key").value.trim(); if (!key) return;
+  $("msg").className = "note"; $("msg").textContent = "Loading...";
+  const r = await fetch("/api/results?key=" + encodeURIComponent(key)).catch(() => null);
+  if (!r || !r.ok) {
+    $("msg").className = "note err";
+    $("msg").textContent = r && r.status === 401 ? "That key isn't right." : "Couldn't load results. Try again.";
+    return;
+  }
+  try { localStorage.setItem("draft-key", key); } catch (e) {}
+  const { responses } = await r.json();
+  $("login").hidden = true; $("tally").hidden = false; $("people").hidden = false;
+  $("inCount").textContent = responses.length + " of " + LEAGUE + " teams in";
+
+  const counts = {};
+  responses.forEach(p => p.slots.forEach(s => counts[s] = (counts[s] || 0) + 1));
+  const best = $("best"); best.textContent = "";
+  const ranked = Object.keys(counts).sort((a, b) => counts[b] - counts[a] || a.localeCompare(b)).slice(0, 8);
+  if (!ranked.length) { const li = document.createElement("li"); li.className = "note";
+    li.textContent = "No picks yet. Times show up here as people confirm."; best.appendChild(li); }
+  ranked.forEach(id => {
+    const li = document.createElement("li");
+    const b = document.createElement("b"); b.textContent = label(id);
+    const ct = document.createElement("span"); ct.className = "ct"; ct.textContent = counts[id] + " of " + responses.length;
+    li.append(b, ct);
+    const out = responses.filter(p => !p.slots.includes(id)).map(p => p.name);
+    if (out.length) { const o = document.createElement("span"); o.className = "out"; o.textContent = "Can't: " + out.join(", "); li.appendChild(o); }
+    best.appendChild(li);
+  });
+  const who = $("who"); who.textContent = "";
+  responses.forEach(p => { const s = document.createElement("span"); s.style.paddingRight = "11px"; s.textContent = p.name; who.appendChild(s); });
+}
+$("go").onclick = load;
+$("refresh").onclick = load;
+if (key) load();
+</script>
+</body>
+</html>
