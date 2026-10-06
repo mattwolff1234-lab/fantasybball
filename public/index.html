@@ -7,10 +7,10 @@
 <meta name="description" content="Pick every time you can make the fantasy basketball draft.">
 <link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body class="docked">
 <div class="bar"><div>
   <h1>Draft Scheduling</h1>
-  <p class="sub">Fantasy Basketball · 10 teams · tap every time you can make · all times ET</p>
+  <p class="sub">Pick every time you can make · all times ET</p>
 </div></div>
 <main>
   <section class="panel">
@@ -18,16 +18,26 @@
       <label for="name">Your name</label>
       <input type="text" id="name" maxlength="24" autocomplete="off">
     </div>
-    <div class="days" id="days"></div>
   </section>
 
-  <section class="panel" id="actions">
-    <div class="row">
-      <button class="btn" id="confirm" type="button">Confirm</button>
-      <span class="note" id="msg" role="status"></span>
+  <section class="panel">
+    <div>
+      <p class="lbl">Quick picks</p>
+      <div class="quick" id="quick"></div>
     </div>
+    <p class="note">Then fine-tune below. Tap a time, or swipe across a row to grab several.</p>
   </section>
+
+  <section class="panel days" id="days"></section>
 </main>
+
+<div class="dock"><div>
+  <div class="status">
+    <b id="count"></b>
+    <span class="note" id="msg" role="status"></span>
+  </div>
+  <button class="btn" id="confirm" type="button">Confirm</button>
+</div></div>
 
 <script src="/slots.js"></script>
 <script>
@@ -39,24 +49,84 @@ try { const s = JSON.parse(localStorage.getItem("draft-picks") || "{}");
 const save = () => { try { localStorage.setItem("draft-picks",
   JSON.stringify({ name: $("name").value, slots: [...mine] })); } catch (e) {} };
 
+const slots = [], pills = [];
+const render = () => {
+  slots.forEach(b => b.setAttribute("aria-pressed", mine.has(b.dataset.id)));
+  pills.forEach(([b, ids]) => b.setAttribute("aria-pressed", ids.every(id => mine.has(id))));
+  $("clear").hidden = !mine.size;
+  $("count").textContent = mine.size ? mine.size + (mine.size === 1 ? " time picked" : " times picked") : "No times picked yet";
+};
+const changed = () => { save(); $("msg").textContent = ""; render(); };
+const set = (id, on) => { if (mine.has(id) === on) return; on ? mine.add(id) : mine.delete(id); changed(); };
+// A pill selects a whole group of times; tapping it again when they're all on clears them.
+const pill = (text, ids) => {
+  const b = document.createElement("button"); b.type = "button"; b.className = "pick"; b.textContent = text;
+  b.onclick = () => { const on = !ids.every(id => mine.has(id));
+    ids.forEach(id => on ? mine.add(id) : mine.delete(id)); changed(); };
+  pills.push([b, ids]); return b;
+};
+const ids = (day, hour) => days.filter(day).flatMap(d => d.hours.filter(hour).map(h => d.key + "-" + h));
+
+const quick = $("quick");
+[["Weeknights", d => !d.weekend, () => true],
+ ["Weekend afternoons", d => d.weekend, h => h < 17],
+ ["Weekend nights", d => d.weekend, h => h >= 17],
+ ["Everything", () => true, () => true]].forEach(([text, day, hour]) => {
+  const list = ids(day, hour); if (list.length) quick.appendChild(pill(text, list));
+});
+const clear = document.createElement("button"); clear.type = "button"; clear.id = "clear";
+clear.className = "pick clear"; clear.textContent = "Clear";
+clear.onclick = () => { mine.clear(); changed(); };
+quick.appendChild(clear);
+
 const wrap = $("days");
 days.forEach(d => {
   const row = document.createElement("div"); row.className = "day";
-  const nm = document.createElement("div"); nm.className = "dname"; nm.textContent = d.dow;
+  const head = document.createElement("div"); head.className = "dhead";
+  const nm = document.createElement("span"); nm.className = "dname"; nm.textContent = d.dow;
   const sm = document.createElement("small"); sm.textContent = d.label; nm.appendChild(sm);
-  const chips = document.createElement("div"); chips.className = "chips";
-  d.hours.forEach(h => {
-    const id = d.key + "-" + h;
-    const b = document.createElement("button"); b.type = "button"; b.className = "chip";
-    b.setAttribute("aria-pressed", mine.has(id));
-    const t = document.createElement("span"); t.className = "t"; t.textContent = hr(h); b.appendChild(t);
-    b.onclick = () => { mine.has(id) ? mine.delete(id) : mine.add(id);
-      b.setAttribute("aria-pressed", mine.has(id)); save(); $("msg").textContent = ""; };
-    chips.appendChild(b);
+  const all = pill("All", d.hours.map(h => d.key + "-" + h));
+  all.setAttribute("aria-label", "All times " + d.dow + " " + d.label);
+  head.append(nm, all);
+  // Back-to-back hours share a line; a gap (afternoon to night) starts a new one.
+  const times = document.createElement("div"); times.className = "times";
+  let run = 0, cols = 0;
+  d.hours.forEach((h, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "slot";
+    b.dataset.id = d.key + "-" + h; b.textContent = hr(h);
+    if (i && h - d.hours[i - 1] > 1) { b.style.gridColumnStart = 1; run = 0; }
+    cols = Math.max(cols, ++run);
+    slots.push(b); times.appendChild(b);
   });
-  row.append(nm, chips); wrap.appendChild(row);
+  times.style.setProperty("--cols", cols);
+  row.append(head, times); wrap.appendChild(row);
+});
+
+// Tap toggles one time. Swiping sideways paints every time the finger crosses, on or off to match the first one.
+let paint = null, skipClick = false;
+wrap.addEventListener("pointerdown", e => {
+  const b = e.target.closest(".slot"); skipClick = false;
+  paint = b ? { x: e.clientX, first: b.dataset.id, on: !mine.has(b.dataset.id), moved: false } : null;
+});
+wrap.addEventListener("pointermove", e => {
+  if (!paint) return;
+  if (!paint.moved) { if (Math.abs(e.clientX - paint.x) < 10) return; paint.moved = true; set(paint.first, paint.on); }
+  const el = document.elementFromPoint(e.clientX, e.clientY), b = el && el.closest(".slot");
+  if (b) set(b.dataset.id, paint.on);
+});
+const endPaint = () => {
+  if (paint && paint.moved) { skipClick = true; setTimeout(() => skipClick = false, 300); }
+  paint = null;
+};
+addEventListener("pointerup", endPaint);
+addEventListener("pointercancel", endPaint);
+wrap.addEventListener("click", e => {
+  const b = e.target.closest(".slot"); if (!b) return;
+  if (skipClick) { skipClick = false; return; }
+  set(b.dataset.id, !mine.has(b.dataset.id));
 });
 $("name").oninput = save;
+render();
 
 $("confirm").onclick = async () => {
   const name = $("name").value.trim(), msg = $("msg");
@@ -69,10 +139,10 @@ $("confirm").onclick = async () => {
       body: JSON.stringify({ name, slots: [...mine] }) });
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Save failed");
     msg.className = "note done";
-    msg.textContent = "You're in. Change your picks and hit Confirm again anytime.";
+    msg.textContent = "You're in. Change picks and confirm again anytime.";
   } catch (e) {
     msg.className = "note err";
-    msg.textContent = "Couldn't save your picks. Check your connection and try again.";
+    msg.textContent = "Couldn't save. Check your connection and try again.";
   } finally { $("confirm").disabled = false; }
 };
 </script>

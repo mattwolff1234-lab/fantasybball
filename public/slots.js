@@ -13,7 +13,7 @@ window.DRAFT = (function () {
     const d = new Date(START); d.setDate(d.getDate() + i);
     const we = d.getDay() === 0 || d.getDay() === 6;
     days.push({ key: pad(d.getMonth() + 1) + pad(d.getDate()), dow: DOW[d.getDay()],
-      label: (d.getMonth() + 1) + "/" + d.getDate(), hours: we ? WEEKEND : WEEKDAY });
+      label: (d.getMonth() + 1) + "/" + d.getDate(), weekend: we, hours: we ? WEEKEND : WEEKDAY });
   }
   const valid = new Set(days.flatMap(d => d.hours.map(h => d.key + "-" + h)));
   const label = id => { const [k, h] = id.split("-"); const d = days.find(x => x.key === k);

@@ -1,45 +1,62 @@
-/* Layout: dark league bar on top, then white roster-style cards on a grey field. Days are table rows, times are compact buttons. */
+/* Layout: dark league bar on top, then white cards on a grey field. Each day is a block of big tap targets; Confirm stays docked at the bottom. */
 :root{
   --bg:#edeef0; --panel:#ffffff; --ink:#2b2c2d; --muted:#6c6d6f; --line:#dcdddf;
   --bar:#151617; --bar-ink:#ffffff; --accent:#0066cc; --accent-ink:#ffffff;
   --chip:#ffffff; --head:#f6f7f8; --on:#e6f4ec; --on-line:#12853f; --on-ink:#0b6b31;
+  --sel:#12853f; --sel-ink:#ffffff;
   --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;
 }
 @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
   --bg:#0f1011; --panel:#1b1c1e; --ink:#f1f2f3; --muted:#a5a6a7; --line:#34363a;
   --bar:#000000; --bar-ink:#ffffff; --accent:#4c9bf5; --accent-ink:#0a1420;
-  --chip:#232528; --head:#232528; --on:#143524; --on-line:#3fbf74; --on-ink:#8fe3b0; color-scheme:dark } }
+  --chip:#232528; --head:#232528; --on:#143524; --on-line:#3fbf74; --on-ink:#8fe3b0;
+  --sel:#3fbf74; --sel-ink:#06210f; color-scheme:dark } }
 :root[data-theme="dark"]{
   --bg:#0f1011; --panel:#1b1c1e; --ink:#f1f2f3; --muted:#a5a6a7; --line:#34363a;
   --bar:#000000; --bar-ink:#ffffff; --accent:#4c9bf5; --accent-ink:#0a1420;
-  --chip:#232528; --head:#232528; --on:#143524; --on-line:#3fbf74; --on-ink:#8fe3b0; color-scheme:dark }
-body{background:var(--bg);color:var(--ink);font:400 14px/1.4 var(--sans);padding-inline:16px;padding-block:0 48px}
-.bar{background:var(--bar);color:var(--bar-ink);margin-inline:-16px;padding:14px 16px}
+  --chip:#232528; --head:#232528; --on:#143524; --on-line:#3fbf74; --on-ink:#8fe3b0;
+  --sel:#3fbf74; --sel-ink:#06210f; color-scheme:dark }
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 14px/1.4 var(--sans);padding-inline:16px;padding-block:0 48px}
+body.docked{padding-bottom:calc(120px + env(safe-area-inset-bottom))}
+.bar{background:var(--bar);color:var(--bar-ink);margin-inline:-16px;padding:16px}
 .bar div{max-width:640px;margin-inline:auto}
 h1{font:700 20px/1.2 var(--sans);margin:0;text-wrap:balance}
-.sub{color:var(--bar-ink);opacity:.75;font-size:13px;margin-top:2px}
+.sub{color:var(--bar-ink);opacity:.75;font-size:13px;margin-top:3px}
 main{max-width:640px;margin-inline:auto;margin-top:16px;display:flex;flex-direction:column;gap:12px}
-h2{font:700 12px/1 var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:-14px -14px 0;padding:11px 14px;background:var(--head);border-bottom:1px solid var(--line);border-radius:8px 8px 0 0}
+h2{font:700 12px/1 var(--sans);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:-14px -14px 0;padding:11px 14px;background:var(--head);border-bottom:1px solid var(--line);border-radius:12px 12px 0 0}
 p{margin:0}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:12px}
-label{font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin-bottom:5px}
-input[type=text],textarea{width:100%;box-sizing:border-box;font:inherit;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:4px;padding:9px 10px}
-textarea{min-height:92px;resize:vertical;font-size:13px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:12px}
+label,.lbl{font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin-bottom:6px}
+/* 16px keeps iOS from zooming the page when the field is focused */
+input[type=text]{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.days{display:flex;flex-direction:column;margin-inline:-14px;margin-bottom:-14px}
-.day{display:grid;grid-template-columns:92px 1fr;gap:10px;align-items:center;padding:9px 14px;border-top:1px solid var(--line)}
-.dname{font-weight:700;font-size:14px}
-.dname small{font-weight:400;font-size:12px;color:var(--muted);margin-left:6px}
-.chips{display:flex;flex-wrap:wrap;gap:8px;min-width:0}
-.chip{position:relative;font:700 13px/1 var(--sans);font-variant-numeric:tabular-nums;color:var(--accent);background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:9px 14px;min-width:76px;cursor:pointer}
-.chip .heat{display:none}
-.chip[aria-pressed=true]{background:var(--on);border-color:var(--on-line);color:var(--on-ink)}
-.chip[aria-pressed=true] .t::before{content:"✓ "}
+.quick{display:flex;flex-wrap:wrap;gap:8px}
+.pick{font:700 13px/1 var(--sans);color:var(--accent);background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:10px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.pick.clear{border-color:transparent;background:transparent;color:var(--muted)}
+.panel.days{padding:0;gap:0}
+.day{display:flex;flex-direction:column;gap:8px;padding:12px 14px 14px;border-top:1px solid var(--line)}
+.day:first-child{border-top:0}
+.dhead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dname{font-weight:700;font-size:15px}
+.dname small{font-weight:400;font-size:13px;color:var(--muted);margin-left:6px}
+.dhead .pick{font-size:12px;padding:8px 14px}
+.times{display:grid;grid-template-columns:repeat(var(--cols),1fr);gap:8px}
+/* pan-y lets the page scroll vertically while a sideways swipe paints across times */
+.slot{font:700 15px/1 var(--sans);font-variant-numeric:tabular-nums;color:var(--ink);background:var(--chip);border:1px solid var(--line);border-radius:10px;height:46px;padding:0;cursor:pointer;touch-action:pan-y;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent}
+.slot[aria-pressed=true],.pick[aria-pressed=true]{background:var(--sel);border-color:var(--sel);color:var(--sel-ink)}
 .btn{font:700 13px/1 var(--sans);background:var(--accent);color:var(--accent-ink);border:1px solid var(--accent);border-radius:999px;padding:11px 20px;cursor:pointer;align-self:flex-start}
 .btn.quiet{background:transparent;color:var(--accent);border-color:var(--line)}
+.btn[disabled]{opacity:.6;cursor:default}
 .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .row h2{flex:1 1 100%}
 .note{font-size:13px;color:var(--muted)}
+.dock{position:fixed;inset:auto 0 0;background:var(--panel);border-top:1px solid var(--line);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.dock>div{max-width:640px;margin-inline:auto;display:flex;gap:12px;align-items:center;justify-content:space-between}
+.status{display:flex;flex-direction:column;gap:2px;min-width:0}
+.status b{font-size:15px;font-variant-numeric:tabular-nums}
+.dock .btn{align-self:center;flex:none;font-size:15px;padding:14px 28px}
 .best{display:flex;flex-direction:column;margin:0 -14px;padding:0;list-style:none}
 .best li{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline;justify-content:space-between;padding:9px 14px;border-top:1px solid var(--line)}
 .best li:first-child{border-top:0;padding-top:0}
@@ -48,11 +65,5 @@ textarea{min-height:92px;resize:vertical;font-size:13px}
 .best .out{flex-basis:100%;font-size:12px;color:var(--muted)}
 .who{display:flex;flex-wrap:wrap;gap:6px}
 .who span{display:inline-flex;gap:6px;align-items:center;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:999px;padding:3px 5px 3px 11px}
-.who button{font:inherit;line-height:1;border:0;background:var(--head);color:var(--muted);border-radius:50%;width:20px;height:20px;cursor:pointer}
-@media (max-width:420px){ .day{grid-template-columns:78px 1fr} .chip{min-width:66px;padding-inline:10px} }
-*{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{margin:0}
-.btn[disabled]{opacity:.6;cursor:default}
-.done{border-color:var(--on-line);background:var(--on);color:var(--on-ink);font-weight:700}
+.done{color:var(--on-ink);font-weight:700}
 .err{color:#c8102e}
