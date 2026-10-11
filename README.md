@@ -16,3 +16,16 @@ A name is locked to the first device that sends picks for it, so nobody else can
 The commissioner can unlock a name from `/results`.
 
 Hosted on Vercel. Needs a Blob store connected to the project (`BLOB_READ_WRITE_TOKEN`).
+
+## Draft guide (`/draft`)
+
+Every player ranked for the draft, pulled live from ESPN Fantasy (cached 6 hours).
+Categories leagues rank by summed z-scores against the top teams x 13 players; points leagues rank by fantasy points.
+Cross players off as they go during the draft (saved in your browser).
+
+- `public/draft.html`, `public/draft.css` - the guide
+- `public/rank.js` - ranking math
+- `api/players.js` - ESPN player pool and league scoring
+
+Optional env vars: `ESPN_LEAGUE_ID` to use our league's categories or points, plus `ESPN_S2` and `ESPN_SWID`
+(cookies from a logged in espn.com session) if the league is private. `ESPN_SEASON` defaults to 2027 (the 2026-27 season).

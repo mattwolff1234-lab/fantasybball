@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Draft Guide</title>
+<meta name="description" content="Every player ranked for our fantasy basketball draft, from ESPN stats and our league's scoring.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800&display=swap">
+<link rel="stylesheet" href="/draft.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <small>Fantasy Basketball · rankings from ESPN</small>
+      <h1><b id="seasonLabel">2026-27</b> Draft Guide</h1>
+    </div>
+    <p class="scoring" id="scoring"></p>
+  </header>
+
+  <div class="controls" id="controls">
+    <div class="seg" id="modeSeg" hidden>
+      <button type="button" data-mode="cats">9-cat</button>
+      <button type="button" data-mode="points">Points</button>
+    </div>
+    <div class="seg" id="srcSeg">
+      <button type="button" data-src="proj">Projections</button>
+      <button type="button" data-src="last">Last season</button>
+    </div>
+    <div class="seg" id="valSeg">
+      <button type="button" data-season="0">Per game</button>
+      <button type="button" data-season="1">Full season</button>
+    </div>
+  </div>
+
+  <section class="stage" aria-label="Player card">
+    <div class="tilt" id="tilt">
+      <article class="card" id="card" aria-live="polite">
+        <div class="ctop">
+          <div class="brand">Draft<br>Guide<span id="cSub">Loading ESPN rankings</span></div>
+          <div class="crank"><small id="cTier">&nbsp;</small><span id="cRank">#</span></div>
+        </div>
+        <span class="best" id="cBest" hidden>BEST AVAILABLE</span>
+        <span class="stamp" id="cStamp" hidden>DRAFTED</span>
+        <div class="art"><div class="orb"></div><span class="initials" id="cInit"></span><img class="head" id="cImg" alt="" hidden></div>
+        <h2 class="cname" id="cName"><small>&nbsp;</small>&nbsp;</h2>
+        <i class="dash"></i>
+        <p class="cmeta" id="cMeta">&nbsp;</p>
+        <div class="cstats" id="cStats"></div>
+      </article>
+    </div>
+    <div class="dock">
+      <button class="ibtn" id="prev" type="button" aria-label="Previous player"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 3 5 8l5 5"/></svg></button>
+      <div class="thumbs" id="thumbs"></div>
+      <button class="ibtn" id="next" type="button" aria-label="Next player"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 3 5 5-5 5"/></svg></button>
+      <span class="sep"></span>
+      <button class="ibtn" id="play" type="button" aria-label="Pause"></button>
+      <button class="take" id="take" type="button" aria-pressed="false">Mark drafted</button>
+    </div>
+  </section>
+
+  <section class="list">
+    <div class="lhead">
+      <h2 id="listTitle">All players</h2>
+      <div class="filters">
+        <input class="search" id="q" type="search" placeholder="Search players or teams" autocomplete="off">
+        <div class="chips" id="pos"></div>
+        <button class="chip" id="hide" type="button" aria-pressed="false">Hide drafted</button>
+      </div>
+    </div>
+    <div class="scroll"><table id="table"><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+    <p class="state" id="state">Loading ESPN rankings…</p>
+    <button class="more" id="more" type="button" hidden>Show more</button>
+  </section>
+  <p class="foot" id="foot"></p>
+</div>
+
+<script type="module">
+import { rank, NINE_CAT } from "/rank.js";
+const $ = id => document.getElementById(id);
+const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+// Orb colors by tier: violet, sunset, ice, then around again
+const HUES = [["#7c3aed", "#ec4899", "#22d3ee"], ["#f97316", "#f43f5e", "#a3e635"], ["#2563eb", "#22d3ee", "#a855f7"],
+  ["#10b981", "#84cc16", "#06b6d4"], ["#e11d48", "#f59e0b", "#8b5cf6"], ["#0ea5e9", "#6366f1", "#f472b6"]];
+const POS = ["All", "PG", "SG", "SF", "PF", "C"];
+const STEP = 60, reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const head = id => `https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/${id}.png&w=350&h=254`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const fmt = (k, v) => v == null ? "-" : k.endsWith("%") ? (v * 100).toFixed(1) : v.toFixed(1);
+
+let data = null, rows = [], view = [], sel = 0, shown = STEP, playing = !reduced, timer = null;
+const ui = Object.assign({ mode: "cats", src: "proj", season: false, pos: "All", hide: false, q: "" }, store.get("guide-ui", {}));
+let taken = new Set(store.get("guide-taken", []));
+let league = null, cats = NINE_CAT, statCols = NINE_CAT.map(c => c.stat);
+
+function seasonText(s) { return (s - 1) + "-" + String(s).slice(2); }
+
+function opts() {
+  return { mode: ui.mode, cats, points: league?.points, source: ui.src, season: ui.season, teams: league?.size || 10 };
+}
+
+function refresh(keepId) {
+  const id = keepId ?? view[sel]?.p.id;
+  rows = rank(data.players, opts());
+  filter(id);
+}
+
+function filter(keepId) {
+  const q = ui.q.trim().toLowerCase();
+  view = rows.filter(r => (ui.pos === "All" || r.p.pos.includes(ui.pos)) && (!ui.hide || !taken.has(r.p.id))
+    && (!q || r.p.name.toLowerCase().includes(q) || r.p.team.toLowerCase() === q));
+  const i = view.findIndex(r => r.p.id === keepId);
+  sel = i >= 0 ? i : 0;
+  shown = Math.max(STEP, Math.ceil((sel + 1) / STEP) * STEP);
+  renderControls(); renderTable(); renderCard(false);
+}
+
+function bestAvailable() { return rows.find(r => !taken.has(r.p.id)); }
+
+// ---------- card ----------
+function hues(el, tier) { const h = HUES[(tier - 1) % HUES.length]; el.style.setProperty("--h1", h[0]); el.style.setProperty("--h2", h[1]); el.style.setProperty("--h3", h[2]); }
+function zColor(z) { return z > 1 ? "#4ade80" : z > .3 ? "#a3e635" : z < -1 ? "#f87171" : z < -.3 ? "#fb923c" : "#a1a1aa"; }
+
+function fillCard() {
+  const r = view[sel];
+  if (!r) { $("cName").innerHTML = "<small>&nbsp;</small>no matches"; $("cMeta").textContent = "Try another search or position."; $("cStats").innerHTML = ""; $("cImg").hidden = true; $("cInit").textContent = ""; return; }
+  const p = r.p, l = (ui.src === "last" ? p.last || p.now : p.proj || p.last) || {};
+  hues($("card"), r.tier);
+  $("cRank").textContent = "#" + r.rank;
+  $("cTier").textContent = "TIER " + r.tier;
+  $("cSub").textContent = seasonText(data.season) + " · Round " + r.round;
+  const parts = p.name.split(" "), first = parts.shift();
+  $("cName").innerHTML = `<small>${esc(first)}</small>${esc(parts.join(" ") || first)}`;
+  const value = ui.mode === "points" ? r.value.toFixed(1) + (ui.season ? " FP" : " FP/G") : (r.value >= 0 ? "+" : "") + r.value.toFixed(1) + " value";
+  $("cMeta").innerHTML = [p.pos.join("/") || "-", p.team, value, l.GP ? Math.round(l.GP) + " GP" : null,
+    p.adp ? "ADP " + p.adp.toFixed(1) : null].filter(Boolean).map(esc).join(" · ")
+    + (p.injury ? ` · <span class="inj">${esc(p.injury.replace(/_/g, " ").toLowerCase())}</span>` : "");
+  $("cStats").innerHTML = statCols.slice(0, 9).map(k => {
+    const z = r.z[k], w = z == null ? 0 : Math.min(100, Math.max(6, 50 + z * 22));
+    return `<div><span>${esc(k)}</span><b>${fmt(k, l[k])}</b><i style="--w:${w}%;--c:${zColor(z ?? 0)}"></i></div>`;
+  }).join("");
+  const img = $("cImg"); img.hidden = true; $("cInit").textContent = first[0] + (parts.at(-1)?.[0] || "");
+  img.onload = () => { img.hidden = false; $("cInit").textContent = ""; };
+  img.onerror = () => { img.hidden = true; };
+  img.src = head(p.id);
+  $("cStamp").hidden = !taken.has(p.id);
+  $("cBest").hidden = bestAvailable()?.p.id !== p.id;
+  $("take").setAttribute("aria-pressed", taken.has(p.id));
+  $("take").textContent = taken.has(p.id) ? "Drafted" : "Mark drafted";
+}
+
+let flipping = null;
+function renderCard(animate, dir = 1) {
+  renderThumbs(); markRow();
+  if (!animate || reduced) { fillCard(); return; }
+  const card = $("card");
+  flipping?.cancel();
+  flipping = card.animate([{ transform: "none", opacity: 1 }, { transform: `rotateY(${-dir * 75}deg) translateX(${-dir * 30}px)`, opacity: 0 }],
+    { duration: 170, easing: "ease-in" });
+  flipping.onfinish = () => {
+    fillCard();
+    flipping = card.animate([{ transform: `rotateY(${dir * 75}deg) translateX(${dir * 30}px)`, opacity: 0 }, { transform: "none", opacity: 1 }],
+      { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" });
+  };
+}
+
+function renderThumbs() {
+  const out = [];
+  for (let d = -2; d <= 2; d++) {
+    const r = view[sel + d];
+    if (!r) { out.push(`<span class="thumb" style="visibility:hidden"></span>`); continue; }
+    const h = HUES[(r.tier - 1) % HUES.length];
+    out.push(`<button class="thumb" type="button" data-i="${sel + d}" aria-label="${esc(r.p.name)}" aria-current="${d === 0}"
+      style="--h1:${h[0]};--h2:${h[1]};--h3:${h[2]}"><em>${r.rank}</em><span class="orb"></span><img src="${head(r.p.id)}" alt="" loading="lazy" onerror="this.remove()"></button>`);
+  }
+  $("thumbs").innerHTML = out.join("");
+}
+
+function go(i, user = true) {
+  if (!view.length) return;
+  i = Math.max(0, Math.min(view.length - 1, i));
+  if (i === sel) return;
+  const dir = i > sel ? 1 : -1;
+  sel = i;
+  if (sel >= shown) { shown = Math.ceil((sel + 1) / STEP) * STEP; renderTable(); }
+  renderCard(true, dir);
+  if (user) setPlaying(false);
+}
+
+// ---------- autoplay ----------
+const ICON = { play: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>',
+  pause: '<svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="2.5" width="3" height="11" rx="1"/><rect x="9.5" y="2.5" width="3" height="11" rx="1"/></svg>' };
+function setPlaying(on) {
+  playing = on; clearInterval(timer);
+  $("play").innerHTML = on ? ICON.pause : ICON.play;
+  $("play").setAttribute("aria-label", on ? "Pause" : "Play");
+  if (on) timer = setInterval(() => { if (document.hidden) return; sel >= Math.min(view.length, 30) - 1 ? (sel = -1, go(0, false)) : go(sel + 1, false); }, 3800);
+}
+
+// ---------- tilt ----------
+const tilt = $("tilt");
+let swipe = null;
+tilt.addEventListener("pointermove", e => {
+  const b = tilt.getBoundingClientRect(), x = (e.clientX - b.left) / b.width, y = (e.clientY - b.top) / b.height;
+  if (reduced) return;
+  tilt.classList.add("live");
+  tilt.style.setProperty("--x", (x * 2 - 1).toFixed(3)); tilt.style.setProperty("--y", (y * 2 - 1).toFixed(3));
+  tilt.style.setProperty("--mx", (x * 100).toFixed(1) + "%"); tilt.style.setProperty("--my", (y * 100).toFixed(1) + "%");
+});
+const settle = () => { tilt.classList.remove("live"); tilt.style.setProperty("--x", 0); tilt.style.setProperty("--y", 0); };
+tilt.addEventListener("pointerleave", settle);
+tilt.addEventListener("pointerdown", e => { swipe = { x: e.clientX, y: e.clientY }; });
+tilt.addEventListener("pointerup", e => {
+  if (!swipe) return;
+  const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y; swipe = null;
+  if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) go(sel + (dx < 0 ? 1 : -1));
+  if (e.pointerType !== "mouse") settle();
+});
+tilt.addEventListener("pointercancel", () => { swipe = null; settle(); });
+
+// ---------- table ----------
+function renderControls() {
+  document.querySelectorAll("#modeSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === ui.mode));
+  document.querySelectorAll("#srcSeg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.src === ui.src));
+  document.querySelectorAll("#valSeg button").forEach(b => b.setAttribute("aria-pressed", (b.dataset.season === "1") === ui.season));
+  $("pos").innerHTML = POS.map(p => `<button class="chip" type="button" data-pos="${p}" aria-pressed="${p === ui.pos}">${p}</button>`).join("");
+  $("hide").setAttribute("aria-pressed", ui.hide);
+  $("listTitle").textContent = (ui.pos === "All" ? "All players" : ui.pos + "s") + " · " + view.length;
+  store.set("guide-ui", { mode: ui.mode, src: ui.src, season: ui.season, pos: ui.pos, hide: ui.hide });
+}
+
+function heat(z) {
+  if (z == null) return "";
+  const a = Math.min(1, Math.abs(z) / 2) * 34;
+  return `background:color-mix(in srgb,var(${z >= 0 ? "--good" : "--bad"}) ${a.toFixed(0)}%,transparent)`;
+}
+
+function renderTable() {
+  const pts = ui.mode === "points";
+  $("thead").innerHTML = `<tr><th class="l" style="width:34px"></th><th class="l">#</th><th class="l">Player</th>
+    <th>${pts ? (ui.season ? "FP" : "FP/G") : "Value"}</th><th class="hide-sm">ADP</th><th class="hide-sm">GP</th>
+    ${statCols.map(k => `<th class="hide-sm">${esc(k)}</th>`).join("")}</tr>`;
+  const best = bestAvailable()?.p.id;
+  let html = "", lastTier = 0;
+  view.slice(0, shown).forEach((r, i) => {
+    const p = r.p, l = (ui.src === "last" ? p.last || p.now : p.proj || p.last) || {}, gone = taken.has(p.id);
+    if (r.tier !== lastTier && !ui.q) { html += `<tr class="tier"><td colspan="${6 + statCols.length}">Tier ${r.tier}</td></tr>`; lastTier = r.tier; }
+    html += `<tr class="p${gone ? " gone" : ""}" data-i="${i}" aria-selected="${i === sel}">
+      <td class="l"><button class="ck" type="button" data-take="${p.id}" aria-pressed="${gone}" aria-label="Mark ${esc(p.name)} drafted"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m3 8.5 3.2 3L13 4.5"/></svg></button></td>
+      <td class="l rk">${r.rank}</td>
+      <td class="l"><div class="who"><span class="mini"><img src="${head(p.id)}" alt="" loading="lazy" onerror="this.remove()"></span>
+        <span><b>${esc(p.name)}</b><small>${esc(p.pos.join("/"))} · ${esc(p.team)}${p.injury ? ` · <span class="inj">${esc(p.injury.replace(/_/g, " ").toLowerCase())}</span>` : ""}${p.id === best ? " · best available" : ""}</small></span></div></td>
+      <td class="val">${pts ? r.value.toFixed(1) : (r.value >= 0 ? "+" : "") + r.value.toFixed(2)}</td>
+      <td class="hide-sm">${p.adp ? p.adp.toFixed(1) : "-"}</td><td class="hide-sm">${l.GP ? Math.round(l.GP) : "-"}</td>
+      ${statCols.map(k => `<td class="z hide-sm" style="${pts ? "" : heat(r.z[k])}">${fmt(k, l[k])}</td>`).join("")}</tr>`;
+  });
+  $("tbody").innerHTML = html;
+  $("state").hidden = !!view.length; if (!view.length) $("state").textContent = "No players match.";
+  $("more").hidden = shown >= view.length;
+}
+
+function markRow() {
+  document.querySelectorAll("tr.p").forEach(tr => tr.setAttribute("aria-selected", +tr.dataset.i === sel));
+}
+
+function toggleTaken(id) {
+  taken.has(id) ? taken.delete(id) : taken.add(id);
+  store.set("guide-taken", [...taken]);
+  if (ui.hide) filter(view[sel]?.p.id === id ? view[sel + 1]?.p.id : view[sel]?.p.id);
+  else { renderTable(); fillCard(); renderThumbs(); }
+}
+
+// ---------- events ----------
+$("modeSeg").onclick = e => { const m = e.target.closest("button")?.dataset.mode; if (m && m !== ui.mode) { ui.mode = m; statCols = colsFor(); refresh(); } };
+$("srcSeg").onclick = e => { const s = e.target.closest("button")?.dataset.src; if (s && s !== ui.src) { ui.src = s; refresh(); } };
+$("valSeg").onclick = e => { const s = e.target.closest("button")?.dataset.season; if (s != null && (s === "1") !== ui.season) { ui.season = s === "1"; refresh(); } };
+$("pos").onclick = e => { const p = e.target.closest("button")?.dataset.pos; if (p) { ui.pos = p; filter(view[sel]?.p.id); } };
+$("hide").onclick = () => { ui.hide = !ui.hide; filter(view[sel]?.p.id); };
+$("q").oninput = () => { ui.q = $("q").value; filter(); setPlaying(false); };
+$("more").onclick = () => { shown += STEP; renderTable(); };
+$("prev").onclick = () => go(sel - 1);
+$("next").onclick = () => go(sel + 1);
+$("play").onclick = () => setPlaying(!playing);
+$("take").onclick = () => { const r = view[sel]; if (r) toggleTaken(r.p.id); setPlaying(false); };
+$("thumbs").onclick = e => { const b = e.target.closest("[data-i]"); if (b) go(+b.dataset.i); };
+$("tbody").onclick = e => {
+  const t = e.target.closest("[data-take]");
+  if (t) { toggleTaken(+t.dataset.take); setPlaying(false); return; }
+  const tr = e.target.closest("tr.p"); if (!tr) return;
+  go(+tr.dataset.i);
+  $("tilt").scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+};
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input,textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "ArrowRight") go(sel + 1); else if (e.key === "ArrowLeft") go(sel - 1);
+  else if (e.key === "d" && view[sel]) toggleTaken(view[sel].p.id);
+});
+
+function colsFor() {
+  if (ui.mode === "points") {
+    const keys = league?.points ? Object.keys(league.points) : [];
+    const order = ["PTS", "REB", "AST", "STL", "BLK", "3PM", "TO", "FG%", "FT%"];
+    return [...new Set([...order, ...keys])].filter(k => !["FGM", "FGA", "FTM", "FTA", "3PA", "OREB", "DREB", "MIN", "GP"].includes(k)).slice(0, 9);
+  }
+  return cats.map(c => c.stat);
+}
+
+// ---------- load ----------
+(async () => {
+  setPlaying(playing);
+  try {
+    const r = await fetch("/api/players");
+    data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Could not load players");
+  } catch (err) {
+    $("state").textContent = err.message || "Could not load players. Refresh to try again.";
+    $("cSub").textContent = "Could not reach ESPN"; $("cName").innerHTML = "<small>&nbsp;</small>try again";
+    setPlaying(false); return;
+  }
+  league = data.league;
+  $("seasonLabel").textContent = seasonText(data.season);
+  const t = league?.type || "";
+  if (league && /POINTS/.test(t) && Object.keys(league.points).length) ui.mode = "points";
+  else if (league && league.cats.length) { ui.mode = "cats"; cats = league.cats; }
+  else $("modeSeg").hidden = false;
+  if (!data.players.some(p => p.proj)) { ui.src = "last"; $("srcSeg").hidden = true; }
+  statCols = colsFor();
+  $("scoring").textContent = league
+    ? (league.name || "Our league") + " · " + (ui.mode === "points" ? "points scoring" : cats.length + "-cat: " + cats.map(c => c.stat).join(", ")) + " · " + league.size + " teams"
+    : "Ranked by standard ESPN scoring (connect the league to use ours)";
+  $("foot").textContent = "Value is the sum of z-scores across every category, measured against the top " + (league?.size || 10) * 13
+    + " players (a full draft). Shooting percentages count by volume. Points leagues rank by fantasy points. Tap a row or swipe the card to browse, tap the check (or press D) to cross a player off as they go.";
+  refresh(null);
+})();
+</script>
+</body>
+</html>
