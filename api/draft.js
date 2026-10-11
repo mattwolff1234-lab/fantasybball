@@ -55,8 +55,8 @@ export default async function handler(req, res) {
     const firstRound = draft.picks.filter(p => p.roundId === 1).sort((a, b) => a.roundPickNumber - b.roundPickNumber).map(p => p.teamId);
     const order = (settings.pickOrder && settings.pickOrder.length ? settings.pickOrder : firstRound).map(id => teams[id]);
 
-    // A few seconds of sharing between viewers, so a room full of phones is still one request to ESPN.
-    res.setHeader("Cache-Control", "public, max-age=0, s-maxage=2, stale-while-revalidate=4");
+    // One second of sharing between viewers, so a room full of phones is still one request to ESPN.
+    res.setHeader("Cache-Control", "public, max-age=0, s-maxage=1, stale-while-revalidate=1");
     res.status(200).json({
       year,
       starts: settings.date || null,

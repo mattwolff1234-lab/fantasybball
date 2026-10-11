@@ -25,7 +25,7 @@ const board = document.getElementById("board"), statusBox = document.getElementB
 const year = new URLSearchParams(location.search).get("year");
 const still = matchMedia("(prefers-reduced-motion:reduce)").matches;
 
-let cells = null, heads = null, made = -1, clockFrom = null, last = null;
+let cells = null, heads = null, shape = null, made = -1, clockFrom = null, last = null;
 
 // ESPN's official headshot. Players without one (some rookies) just show no picture.
 const headshot = (id, width) => {
@@ -85,59 +85,75 @@ function announce(p, owner) {
 
 function showStatus() {
   if (!last) return;
-  const d = last, next = d.picks.find(p => !p.player);
+  const d = last, next = d.picks.find(p => !p.player), count = d.picks.filter(p => p.player).length;
   statusBox.replaceChildren();
   if (d.drafted || !next) { statusBox.append("Draft complete"); return; }
   if (!d.inProgress) {
-    statusBox.append(d.starts ? "Draft starts " + new Date(d.starts).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }) : "Waiting for the draft to start");
+    // The start time is read from ESPN on every check, so a rescheduled draft shows its new time.
+    if (count) statusBox.append("Draft paused");
+    else if (d.starts && d.starts > Date.now()) statusBox.append("Draft starts " + new Date(d.starts).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }));
+    else statusBox.append("Waiting for the draft to start");
     return;
   }
   const owner = d.order.find(t => t.id === next.teamId);
   statusBox.append("On the clock: " + (owner ? owner.owner : ""), el("small", null, `Round ${next.round} · pick ${next.slot}`));
-  // ESPN does not share its pick clock, so this one starts when the board sees the previous pick
-  // arrive. It can run a few seconds behind ESPN's.
+  // ESPN does not share its pick clock or say when the commissioner pauses, so this countdown
+  // starts when the board sees the previous pick arrive and uses ESPN's current seconds-per-pick.
+  // If it runs out and still no pick comes, the draft is paused or ESPN is slow: say so rather than sit at 0:00.
   if (clockFrom && d.seconds) {
-    const left = Math.max(0, Math.ceil(d.seconds - (Date.now() - clockFrom) / 1000));
-    statusBox.append(el("span", "clock" + (left <= 10 ? " low" : ""), `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`));
+    const left = Math.ceil(d.seconds - (Date.now() - clockFrom) / 1000);
+    if (left < -8) statusBox.append(el("small", "clock low", "Waiting on ESPN"));
+    else statusBox.append(el("span", "clock" + (left <= 10 ? " low" : ""), `${Math.floor(Math.max(0, left) / 60)}:${String(Math.max(0, left) % 60).padStart(2, "0")}`));
   }
 }
 
 function render(d) {
-  if (!cells) build(d);
+  // Rebuild the grid if the draft order, team names or number of rounds changed since it was drawn.
+  const nowShape = JSON.stringify([d.order, d.picks.map(p => p.teamId)]);
+  const redrawn = nowShape !== shape;
+  if (redrawn) { build(d); shape = nowShape; }
   const count = d.picks.filter(p => p.player).length, next = d.inProgress ? d.picks.find(p => !p.player) : null;
   d.picks.forEach(p => {
     const wasPicked = cells[p.n].classList.contains("picked");
     fill(cells[p.n], p);
-    if (p.player && !wasPicked && made >= 0) gsap.from(cells[p.n], { scale: .6, opacity: 0, duration: still ? 0 : .6, ease: "back.out(2)" });
+    if (p.player && !wasPicked && made >= 0 && !redrawn) gsap.from(cells[p.n], { scale: .6, opacity: 0, duration: still ? 0 : .6, ease: "back.out(2)" });
   });
   Object.values(heads).forEach(h => h.classList.remove("now"));
   if (next) { cells[next.n].classList.add("now"); heads[next.teamId]?.classList.add("now"); }
-  if (made >= 0 && count > made) {
-    const newest = d.picks.filter(p => p.player).pop();
-    announce(newest, d.order.find(t => t.id === newest.teamId)?.owner || "");
-    clockFrom = Date.now();
-  } else if (made < 0 && next) {
+  if (made < 0) {
     // First look at the board: pick up the clock remembered from before a page reload, or for
     // the very first pick, count from the draft's start time.
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem("draftClock")); } catch (e) {}
-    if (saved && saved.year === d.year && saved.count === count) clockFrom = saved.at;
-    else if (count === 0 && d.starts && Date.now() - d.starts < d.seconds * 1000) clockFrom = d.starts;
+    if (next && saved && saved.year === d.year && saved.count === count) clockFrom = saved.at;
+    else if (next && count === 0 && d.starts && Date.now() >= d.starts && Date.now() - d.starts < d.seconds * 1000) clockFrom = d.starts;
+  } else if (count !== made) {
+    // A new pick restarts the clock. So does a pick the commissioner took back.
+    if (count > made) {
+      const newest = d.picks.filter(p => p.player).pop();
+      announce(newest, d.order.find(t => t.id === newest.teamId)?.owner || "");
+    }
+    clockFrom = Date.now();
+  } else if (last && d.inProgress && !last.inProgress) {
+    // The draft just started, or was resumed after a pause.
+    clockFrom = Date.now();
   }
-  if (clockFrom) try { localStorage.setItem("draftClock", JSON.stringify({ year: d.year, count, at: clockFrom })); } catch (e) {}
+  if (!d.inProgress) clockFrom = null;
+  try { clockFrom ? localStorage.setItem("draftClock", JSON.stringify({ year: d.year, count, at: clockFrom })) : localStorage.removeItem("draftClock"); } catch (e) {}
   made = count;
   last = d;
   showStatus();
 }
 
 async function refresh() {
-  let wait = 3000;
+  let wait = 2000;
   try {
     const r = await fetch("/api/draft" + (year ? "?year=" + encodeURIComponent(year) : ""), { cache: "no-store" });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error);
     render(d);
     if (d.drafted) { setSync("", "Final"); return; }
+    if (!d.inProgress && d.starts - Date.now() > 3600000) wait = 30000;
     setSync("live", d.inProgress ? "Live" : "Synced with ESPN");
   } catch (e) {
     setSync("down", "Reconnecting");
