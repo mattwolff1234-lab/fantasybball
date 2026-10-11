@@ -3,239 +3,181 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Draft Scheduling</title>
-<meta name="description" content="Pick every time you can make the fantasy basketball draft.">
+<title>Fantasy Hoops</title>
+<meta name="description" content="Our fantasy basketball league: draft strategy and eight seasons of league history.">
 <meta name="robots" content="noindex">
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/home.css">
 </head>
 <body>
-<div class="bar"><div>
-  <h1>Draft Scheduling</h1>
-  <p class="sub">Pick every time you can make · all times ET</p>
-  <a class="navlink" href="/guide.html">Draft guide</a>
-</div></div>
-<div class="dock" id="dock"><div>
-  <div class="status">
-    <b id="count"></b>
-    <span class="note" id="msg" role="status"></span>
+<header class="top">
+  <a class="mark" href="/">Fantasy Hoops</a>
+  <nav>
+    <a href="#history">History</a>
+    <a href="/guide.html">Draft guide</a>
+    <a href="/schedule.html">Scheduling</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <p class="eyebrow">2026-27 season</p>
+  <h1>Fantasy Hoops</h1>
+  <p class="lede">Ten teams, eight seasons, one trophy. Everything about the league in one place.</p>
+  <div class="cta">
+    <a class="btn solid" href="/guide.html">Draft strategy</a>
+    <a class="btn" href="#history">League history</a>
   </div>
-  <button class="btn" id="confirm" type="button">Confirm</button>
-</div></div>
-<main id="picker">
-  <section class="panel">
+</section>
+
+<main id="history">
+  <section>
+    <div class="head">
+      <h2>Hall of Fame</h2>
+      <div class="side">
+        <p id="champNote"></p>
+        <button class="arrow" id="champPrev" aria-label="Scroll to newer champions">&larr;</button>
+        <button class="arrow" id="champNext" aria-label="Scroll to older champions">&rarr;</button>
+      </div>
+    </div>
     <div>
-      <label for="name">Your name</label>
-      <input type="text" id="name" maxlength="24" autocomplete="off" autocapitalize="words" list="roster">
-      <datalist id="roster"></datalist>
-      <div class="fielderr" id="nameErr" role="alert" hidden></div>
+      <ol class="timeline" id="champs"></ol>
+      <div class="roster" id="roster"></div>
     </div>
   </section>
 
-  <section class="panel">
-    <div>
-      <p class="lbl">Quick picks</p>
-      <div class="quick" id="quick"></div>
+  <section>
+    <div class="head"><h2>All-time records</h2><p>Regular season, every year since 2018-19</p></div>
+    <div class="scroll"><table id="records"></table></div>
+  </section>
+
+  <section>
+    <div class="head"><h2>Worst trades</h2><p>Gap in fantasy points scored after the trade, to the end of that season</p></div>
+    <ol class="trades" id="trades"></ol>
+  </section>
+
+  <section>
+    <div class="head"><h2>Injury luck</h2><p>Fantasy points lost to injuries, compared with the league average that season</p></div>
+    <div class="luck">
+      <div><h3>Hit hardest</h3><ol id="unlucky"></ol></div>
+      <div><h3>Luckiest</h3><ol id="lucky"></ol></div>
     </div>
-    <p class="note">Then fine-tune below. Tap a time, or swipe across a row to grab several.</p>
-  </section>
-
-  <section class="panel days" id="days">
-    <p class="leadkey" id="leadKey" hidden>★ Most picked so far. Prioritize these if you can.</p>
   </section>
 </main>
 
-<main id="after" hidden>
-  <section class="panel">
-    <h2>Top times so far</h2>
-    <span class="note" id="inCount" role="status"></span>
-    <ul class="best" id="best"></ul>
-  </section>
-  <section class="panel">
-    <div class="row"><button class="btn quiet" id="edit" type="button">Change my picks</button></div>
-  </section>
-</main>
+<footer><span>fantasyhoops.fun</span><a href="/schedule.html">Draft scheduling</a></footer>
 
-<script src="/slots.js"></script>
-<script type="module">
-import { NAMES, matchName } from "/names.js";
-const { days, hr, valid, label, LEAGUE } = window.DRAFT;
-const $ = id => document.getElementById(id);
-let mine = new Set();
-try { const s = JSON.parse(localStorage.getItem("draft-picks") || "{}");
-  mine = new Set((s.slots || []).filter(x => valid.has(x))); $("name").value = s.name || ""; } catch (e) {}
-// Random id for this browser. The server ties a name to the first device that sends picks for it.
-let token = "";
-try { token = localStorage.getItem("draft-token") || ""; } catch (e) {}
-if (!token) { token = crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
-  try { localStorage.setItem("draft-token", token); } catch (e) {} }
-const save = () => { try { localStorage.setItem("draft-picks",
-  JSON.stringify({ name: $("name").value, slots: [...mine] })); } catch (e) {} };
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="/history-data.js"></script>
+<script>
+const H = window.HISTORY;
+const num = n => Math.abs(n).toLocaleString("en-US");
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const row = (parent, tag, cells) => { const tr = el("tr"); cells.forEach(([text, cls]) => tr.append(el(tag, cls, text))); parent.append(tr); };
 
-const slots = [], pills = [];
-const render = () => {
-  slots.forEach(b => b.setAttribute("aria-pressed", mine.has(b.dataset.id)));
-  pills.forEach(([b, ids]) => b.setAttribute("aria-pressed", ids.every(id => mine.has(id))));
-  $("clear").hidden = !mine.size;
-  $("count").textContent = mine.size ? mine.size + (mine.size === 1 ? " time picked" : " times picked") : "No times picked yet";
-};
-const changed = () => { save(); $("msg").textContent = ""; render(); };
-const set = (id, on) => { if (mine.has(id) === on) return; on ? mine.add(id) : mine.delete(id); changed(); };
-// A pill selects a whole group of times; tapping it again when they're all on clears them.
-const pill = (text, ids) => {
-  const b = document.createElement("button"); b.type = "button"; b.className = "pick"; b.textContent = text;
-  b.onclick = () => { const on = !ids.every(id => mine.has(id));
-    ids.forEach(id => on ? mine.add(id) : mine.delete(id)); changed(); };
-  pills.push([b, ids]); return b;
-};
-const ids = (day, hour) => days.filter(day).flatMap(d => d.hours.filter(hour).map(h => d.key + "-" + h));
+const titles = {};
+H.champions.forEach(c => titles[c.champion] = (titles[c.champion] || 0) + 1);
+const most = Object.entries(titles).sort((a, b) => b[1] - a[1])[0];
+document.getElementById("champNote").textContent = `${most[0]} has won ${most[1]} of ${H.champions.length}`;
 
-const quick = $("quick");
-[["Weeknights", d => !d.weekend, () => true],
- ["Weekend afternoons", d => d.weekend, h => h < 17],
- ["Weekend nights", d => d.weekend, h => h >= 17],
- ["Everything", () => true, () => true]].forEach(([text, day, hour]) => {
-  const list = ids(day, hour); if (list.length) quick.appendChild(pill(text, list));
+const table = document.getElementById("records");
+const thead = el("thead"), tbody = el("tbody");
+row(thead, "th", [["Owner"], ["Seasons", "wide"], ["Record"], ["Win %"], ["Titles"], ["Finals"], ["Best finish", "wide"]]);
+const place = n => n + (["th", "st", "nd", "rd"][n % 10 > 3 || (n > 10 && n < 14) ? 0 : n % 10]);
+H.records.forEach(r => row(tbody, "td", [
+  [r.owner, "name"], [r.seasons, "wide"], [`${r.wins}-${r.losses}`],
+  [(100 * r.wins / (r.wins + r.losses)).toFixed(0) + "%"], [r.titles || "–", r.titles ? "gold" : "dim"], [r.finals || "–", r.finals ? "" : "dim"], [place(r.best), "wide"],
+]));
+table.append(thead, tbody);
+
+H.trades.forEach(t => {
+  const li = el("li"), line = el("div", "line");
+  const who = el("b");
+  who.append(t.winner, el("span", "over", " over "), t.loser);
+  line.append(who, el("span", "gap", "+" + num(t.gap)));
+  li.append(line, el("p", null, `${t.winner} got ${t.got}`), el("p", null, `${t.loser} got ${t.gave}`), el("span", "season", t.when));
+  document.getElementById("trades").append(li);
 });
-const clear = document.createElement("button"); clear.type = "button"; clear.id = "clear";
-clear.className = "pick clear"; clear.textContent = "Clear";
-clear.onclick = () => { mine.clear(); changed(); };
-quick.appendChild(clear);
 
-const wrap = $("days");
-days.forEach(d => {
-  const row = document.createElement("div"); row.className = "day";
-  const head = document.createElement("div"); head.className = "dhead";
-  const nm = document.createElement("span"); nm.className = "dname"; nm.textContent = d.dow;
-  const sm = document.createElement("small"); sm.textContent = d.label; nm.appendChild(sm);
-  const all = pill("All", d.hours.map(h => d.key + "-" + h));
-  all.setAttribute("aria-label", "All times " + d.dow + " " + d.label);
-  head.append(nm, all);
-  // Back-to-back hours share a line; a gap (afternoon to night) starts a new one.
-  const times = document.createElement("div"); times.className = "times";
-  let run = 0, cols = 0;
-  d.hours.forEach((h, i) => {
-    const b = document.createElement("button"); b.type = "button"; b.className = "slot";
-    b.dataset.id = d.key + "-" + h; b.textContent = hr(h);
-    if (i && h - d.hours[i - 1] > 1) { b.style.gridColumnStart = 1; run = 0; }
-    cols = Math.max(cols, ++run);
-    slots.push(b); times.appendChild(b);
+const luck = (id, rows, sign) => rows.forEach(r => {
+  const li = el("li"), line = el("div", "line");
+  line.append(el("b", null, r.owner), el("span", "gap " + (sign > 0 ? "bad" : "good"), (sign > 0 ? "+" : "−") + num(r.vs_average)));
+  li.append(line, el("p", null, `${r.season} · biggest losses: ${r.worst.join(", ")}`));
+  document.getElementById(id).append(li);
+});
+luck("unlucky", H.unlucky, 1);
+luck("lucky", H.lucky, -1);
+
+// Hall of Fame: a sideways timeline of champions. Clicking one drops their roster open underneath.
+const track = document.getElementById("champs"), panel = document.getElementById("roster");
+const still = matchMedia("(prefers-reduced-motion:reduce)").matches;
+const t = seconds => still ? 0 : seconds;
+const TROPHY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 5H5v1a3 3 0 0 0 3 3M16 5h3v1a3 3 0 0 1-3 3M12 13v4M10 17h4v3h-4zM8.5 20h7"/></svg>';
+let open = null, drag = null, dragged = false;
+
+const showRoster = c => {
+  const head = el("div", "line"), who = el("b", null, c.team), list = el("ol", "players");
+  who.append(el("span", "over", " · " + c.champion));
+  head.append(who, el("span", "season", `${c.season} · final roster · fantasy points that season`));
+  c.roster.forEach(p => {
+    const li = el("li"), bar = el("span", "bar"), fill = el("i");
+    fill.style.width = 100 * p.points / c.roster[0].points + "%";
+    bar.append(fill);
+    li.append(el("span", null, p.name), el("span", "pos", p.pos), el("span", "pts", num(p.points)), bar);
+    list.append(li);
   });
-  times.style.setProperty("--cols", cols);
-  row.append(head, times); wrap.appendChild(row);
-});
+  const box = el("div", "roster-in");
+  box.append(head, list);
+  panel.replaceChildren(box);
+  gsap.from(list.children, { opacity: 0, y: 14, duration: t(.4), stagger: t(.03), ease: "power2.out", delay: t(.1) });
+  gsap.from(list.querySelectorAll("i"), { scaleX: 0, duration: t(.7), stagger: t(.03), ease: "power3.out", delay: t(.15) });
+};
 
-// Tap toggles one time. Swiping sideways paints every time the finger crosses, on or off to match the first one.
-let paint = null, skipClick = false;
-wrap.addEventListener("pointerdown", e => {
-  const b = e.target.closest(".slot"); skipClick = false;
-  paint = b ? { x: e.clientX, first: b.dataset.id, on: !mine.has(b.dataset.id), moved: false } : null;
-});
-wrap.addEventListener("pointermove", e => {
-  if (!paint) return;
-  if (!paint.moved) { if (Math.abs(e.clientX - paint.x) < 10) return; paint.moved = true; set(paint.first, paint.on); }
-  const el = document.elementFromPoint(e.clientX, e.clientY), b = el && el.closest(".slot");
-  if (b) set(b.dataset.id, paint.on);
-});
-const endPaint = () => {
-  if (paint && paint.moved) { skipClick = true; setTimeout(() => skipClick = false, 300); }
-  paint = null;
-};
-addEventListener("pointerup", endPaint);
-addEventListener("pointercancel", endPaint);
-wrap.addEventListener("click", e => {
-  const b = e.target.closest(".slot"); if (!b) return;
-  if (skipClick) { skipClick = false; return; }
-  set(b.dataset.id, !mine.has(b.dataset.id));
-});
-// Only roster names count. A typo is corrected in place once the field loses focus; anything else gets a hint.
-NAMES.forEach(n => $("roster").appendChild(new Option(n)));
-// A wrong name turns the field red with the reason right under it; when it could be a few people, they're one tap away.
-const nameError = (text, choices = []) => {
-  const err = $("nameErr"); err.textContent = text; err.hidden = !text;
-  $("name").classList.toggle("bad", !!text); $("name").setAttribute("aria-invalid", !!text);
-  choices.forEach(n => { const b = document.createElement("button"); b.type = "button"; b.className = "pick"; b.textContent = n;
-    b.onclick = () => { $("name").value = n; fixName(); }; err.appendChild(b); });
-};
-const fixName = () => {
-  const typed = $("name").value.trim(), m = matchName(typed);
-  if (m.name) $("name").value = m.name;
-  if (!typed || m.name) nameError("");
-  else if (m.close.length) nameError("Which one are you?", m.close);
-  else nameError("⚠ “" + typed + "” isn't on the league list. Check the spelling.");
-  $("msg").textContent = "";
-  save(); return m;
-};
-// Stars the three most picked times so far (plus any tied with third) so everyone knows which to prioritize.
-// A time needs at least two people before it counts.
-const showLeaders = ({ teams, counts }) => {
-  const n = b => counts[b.dataset.id] || 0;
-  const cut = Math.max(2, slots.map(n).sort((x, y) => y - x)[2] || 0);
-  slots.forEach(b => {
-    const lead = n(b) >= cut; let s = b.querySelector("small");
-    b.classList.toggle("lead", lead);
-    if (lead && !s) s = b.appendChild(document.createElement("small"));
-    if (lead) s.textContent = "★ " + n(b) + " of " + teams; else if (s) s.remove();
+H.champions.forEach(c => {
+  const li = el("li"), btn = el("button", "champ");
+  let pic;
+  if (c.logo) { pic = el("img", "pic"); pic.src = c.logo; pic.alt = ""; pic.draggable = false; }
+  else { pic = el("span", "pic none"); pic.innerHTML = TROPHY; }
+  btn.append(el("span", "season", c.season), el("span", "dot"), pic, el("b", null, c.team), el("span", "owner", c.champion), el("span", "sub", `${c.record} · beat ${c.runner_up}`));
+  btn.setAttribute("aria-expanded", "false");
+  btn.addEventListener("click", () => {
+    if (dragged) return;
+    const same = open === btn, from = panel.offsetHeight;
+    if (open) open.setAttribute("aria-expanded", "false");
+    gsap.killTweensOf(panel);
+    if (same) {
+      open = null;
+      gsap.to(panel, { height: 0, duration: t(.4), ease: "power2.inOut", onComplete: () => panel.replaceChildren() });
+      return;
+    }
+    open = btn;
+    btn.setAttribute("aria-expanded", "true");
+    showRoster(c);
+    gsap.fromTo(panel, { height: from }, { height: "auto", duration: t(.55), ease: "power3.out" });
   });
-  $("leadKey").hidden = !slots.some(b => n(b) >= cut);
-};
-const loadStandings = async () => {
-  const r = await fetch("/api/standings");
-  if (!r.ok) throw new Error("Load failed");
-  const s = await r.json(); showLeaders(s); return s;
-};
-loadStandings().catch(() => {});
-$("name").oninput = () => { nameError(""); save(); };
-$("name").onchange = fixName;
-if ($("name").value) fixName();
-render();
+  li.append(btn);
+  track.append(li);
+});
 
-$("confirm").onclick = async () => {
-  const msg = $("msg");
-  const { name } = fixName();
-  if (!name) {
-    if (!$("name").value.trim()) nameError("⚠ Add your name first.");
-    msg.className = "note err"; msg.textContent = "Fix your name first.";
-    $("name").scrollIntoView({ block: "center" }); $("name").focus({ preventScroll: true }); return;
-  }
-  msg.className = "note";
-  if (!mine.size) { msg.textContent = "Pick at least one time."; return; }
-  $("confirm").disabled = true; msg.textContent = "Saving...";
-  try {
-    const r = await fetch("/api/submit", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, slots: [...mine], token }) });
-    if (!r.ok) throw Object.assign(new Error("Save failed"),
-      { reason: r.status < 500 && (await r.json().catch(() => ({}))).error });
-    msg.textContent = "";
-    showStandings();
-  } catch (e) {
-    msg.className = "note err";
-    msg.textContent = e.reason || "Couldn't save right now. Try again in a minute.";
-  } finally { $("confirm").disabled = false; }
-};
+// Cards rise in one after another the first time the timeline scrolls into view.
+gsap.set(track.children, { opacity: 0, y: 32 });
+new IntersectionObserver((entries, watcher) => {
+  if (!entries[0].isIntersecting) return;
+  watcher.disconnect();
+  gsap.to(track.children, { opacity: 1, y: 0, duration: t(.7), stagger: t(.07), ease: "power3.out" });
+}, { threshold: .2 }).observe(track);
 
-// After a save: swap the picker for the league-wide tally, most picked times first.
-const view = after => { $("picker").hidden = $("dock").hidden = after; $("after").hidden = !after; scrollTo(0, 0); };
-async function showStandings() {
-  const note = $("inCount"), best = $("best");
-  note.className = "note done"; note.textContent = "You're in. Loading the top times..."; best.textContent = "";
-  view(true);
-  try {
-    const { teams, counts } = await loadStandings();
-    note.textContent = "You're in. " + teams + " of " + LEAGUE + " teams have picked.";
-    Object.keys(counts).filter(id => valid.has(id))
-      .sort((a, b) => counts[b] - counts[a] || a.localeCompare(b)).slice(0, 5).forEach(id => {
-        const li = document.createElement("li");
-        const b = document.createElement("b"); b.textContent = label(id);
-        const ct = document.createElement("span"); ct.className = "ct"; ct.textContent = counts[id] + " of " + teams;
-        const o = document.createElement("span"); o.className = "out" + (mine.has(id) ? " yours" : "");
-        o.textContent = mine.has(id) ? "You picked this" : "Not one of your picks";
-        li.append(b, ct, o); best.appendChild(li);
-      });
-  } catch (e) {
-    note.textContent = "You're in. Couldn't load the top times right now.";
-  }
-}
-$("edit").onclick = () => view(false);
+const slide = by => gsap.to(track, { scrollLeft: track.scrollLeft + by, duration: t(.6), ease: "power2.out" });
+document.getElementById("champPrev").addEventListener("click", () => slide(-440));
+document.getElementById("champNext").addEventListener("click", () => slide(440));
+
+// Mouse users can grab the timeline and drag it; a drag must not count as a click on a champion.
+track.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") { drag = { x: e.clientX, left: track.scrollLeft }; dragged = false; } });
+addEventListener("pointermove", e => {
+  if (!drag) return;
+  const moved = e.clientX - drag.x;
+  if (Math.abs(moved) > 5) dragged = true;
+  if (dragged) track.scrollLeft = drag.left - moved;
+});
+addEventListener("pointerup", () => drag = null);
 </script>
 </body>
 </html>

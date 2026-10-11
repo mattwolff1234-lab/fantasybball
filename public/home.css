@@ -1,0 +1,112 @@
+/* Home page: one dark, quiet look that matches the draft guide. Type and thin rules do the work; the only colour is the gold on titles. */
+:root{--bg:#070708;--ink:#f1f2f3;--muted:#8a8a93;--line:#1f1f23;--panel:#0d0d0f;--gold:#e9c46a;--good:#8fe3b0;--bad:#ff8f8f;
+  --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans);padding-inline:20px}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--ink);outline-offset:3px;border-radius:4px}
+p,h1,h2,h3,ol{margin:0;padding:0}
+ol{list-style:none}
+.top,.hero,main,footer{max-width:960px;margin-inline:auto}
+
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:20px}
+.mark{font:700 13px/1 var(--sans);letter-spacing:.18em;text-transform:uppercase}
+.top nav{display:flex;gap:20px;font-size:13px;color:var(--muted)}
+.top nav a:hover{color:var(--ink)}
+
+.hero{padding-block:clamp(72px,16vh,160px) clamp(72px,14vh,140px);position:relative}
+/* Soft glow behind the headline, the only decoration on the page */
+.hero::before{content:"";position:absolute;inset:0 -20px;pointer-events:none;
+  background:radial-gradient(60% 55% at 22% 45%,rgba(124,196,255,.13),transparent 70%)}
+.hero>*{position:relative}
+.eyebrow{font:400 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1{font:700 clamp(48px,11vw,112px)/.95 var(--sans);letter-spacing:-.045em;margin-top:18px;text-wrap:balance}
+.lede{color:var(--muted);font-size:clamp(16px,2.2vw,19px);max-width:34ch;margin-top:22px}
+.cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:36px}
+.btn{font:700 14px/1 var(--sans);padding:15px 24px;border-radius:999px;border:1px solid #33343a;transition:background .15s,border-color .15s}
+.btn:hover{border-color:var(--ink)}
+.btn.solid{background:var(--ink);color:#09090b;border-color:var(--ink)}
+.btn.solid:hover{background:#fff}
+
+main{display:flex;flex-direction:column;padding-block:8px 96px;border-top:1px solid var(--line)}
+main>section{display:flex;flex-direction:column;gap:24px;padding-top:64px}
+.head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 20px}
+h2{font:700 clamp(24px,4vw,32px)/1.1 var(--sans);letter-spacing:-.02em}
+.head p{color:var(--muted);font-size:13px}
+h3{font:400 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding-bottom:14px}
+.season{font:400 12px/1 var(--mono);color:var(--muted);letter-spacing:.04em}
+
+.side{display:flex;align-items:center;gap:10px}
+.side p{margin-right:6px}
+.arrow{width:32px;height:32px;border-radius:50%;border:1px solid #33343a;background:none;color:var(--ink);font:400 14px/1 var(--sans);cursor:pointer;transition:border-color .15s}
+.arrow:hover{border-color:var(--ink)}
+
+/* Hall of Fame: champions on a sideways timeline, newest first. The line runs behind the dots. */
+.timeline{display:flex;gap:20px;overflow-x:auto;margin-inline:-20px;padding:4px 20px 20px;scrollbar-width:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.timeline::-webkit-scrollbar{display:none}
+.timeline:active{cursor:grabbing}
+.timeline li{flex:0 0 200px;position:relative}
+.timeline li::before{content:"";position:absolute;left:0;right:-20px;top:28px;height:1px;background:var(--line)}
+.timeline li:last-child::before{right:0}
+.champ{display:flex;flex-direction:column;align-items:flex-start;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.dot{position:relative;width:9px;height:9px;margin-top:12px;border-radius:50%;background:var(--bg);border:1px solid var(--muted);transition:background .2s,border-color .2s,box-shadow .2s}
+.pic{display:grid;place-items:center;width:100%;aspect-ratio:1;margin-top:18px;border-radius:16px;object-fit:cover;background:var(--panel);border:1px solid var(--line);transition:transform .25s,border-color .2s}
+.pic.none{color:var(--gold)}
+.pic.none svg{width:38%}
+.champ:hover .pic{transform:translateY(-4px)}
+.champ b{font:700 17px/1.2 var(--sans);letter-spacing:-.01em;margin-top:14px}
+.champ .owner{color:var(--gold);font-weight:700;font-size:13px;margin-top:6px}
+.champ .sub{color:var(--muted);font-size:13px}
+.champ[aria-expanded=true] .pic{border-color:var(--gold)}
+.champ[aria-expanded=true] .dot{background:var(--gold);border-color:var(--gold);box-shadow:0 0 0 4px rgba(233,196,106,.18)}
+
+.roster{height:0;overflow:hidden}
+.roster-in{display:flex;flex-direction:column;gap:20px;padding:24px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+.roster-in .line{flex-wrap:wrap}
+.players{columns:2;column-gap:48px;font-variant-numeric:tabular-nums}
+.players li{display:grid;grid-template-columns:1fr auto 64px;align-items:baseline;gap:6px 12px;padding-block:9px;break-inside:avoid}
+.pos{font:400 11px/1 var(--mono);letter-spacing:.08em;color:var(--muted)}
+.pts{text-align:right;font-weight:700}
+.bar{grid-column:1/-1;height:2px;background:var(--line);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--gold);transform-origin:left}
+
+.scroll{overflow-x:auto;margin-inline:-20px;padding-inline:20px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{font:400 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right;padding:0 0 12px 16px;white-space:nowrap}
+td{text-align:right;padding:14px 0 14px 16px;border-top:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left;padding-left:0}
+td.name{font-weight:700}
+.gold{color:var(--gold);font-weight:700}
+.dim{color:#4a4a52}
+
+.trades li,.luck li{border-top:1px solid var(--line);padding-block:18px;display:flex;flex-direction:column;gap:5px}
+.trades{counter-reset:n}
+.trades li{counter-increment:n;padding-left:44px;position:relative}
+.trades li::before{content:counter(n,decimal-leading-zero);position:absolute;left:0;top:21px;font:400 12px/1 var(--mono);color:var(--muted)}
+.line{display:flex;align-items:baseline;justify-content:space-between;gap:16px}
+.line b{font-size:17px}
+.over{font-weight:400;color:var(--muted)}
+.gap{font:700 17px/1 var(--sans);font-variant-numeric:tabular-nums}
+.gap.bad{color:var(--bad)}
+.gap.good{color:var(--good)}
+.trades p,.luck p{color:var(--muted);font-size:13px}
+.trades .season{margin-top:5px}
+.luck{display:grid;grid-template-columns:1fr 1fr;gap:48px}
+
+footer{display:flex;justify-content:space-between;gap:16px;border-top:1px solid var(--line);padding-block:28px 40px;font:400 12px/1 var(--mono);color:var(--muted);letter-spacing:.06em}
+
+@media (max-width:760px){
+  .timeline li{flex-basis:168px}
+  .players{columns:1}
+  .roster-in{padding:20px}
+  .luck{grid-template-columns:1fr;gap:40px}
+  main>section{padding-top:48px}
+  .wide{display:none}
+}
+@media (max-width:420px){
+  .top nav{gap:14px}
+  .top nav a[href="/schedule.html"]{display:none}
+  th,td{padding-left:10px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
