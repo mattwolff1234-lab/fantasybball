@@ -68,7 +68,7 @@ body.guide{--bg:#070708;--panel:#0d0d0f;--ink:#f1f2f3;--muted:#8a8a93;--line:#1f
 .count{font-size:13px;color:var(--muted);margin-top:4px}
 
 /* ---- Player grid: square tiles split by hairlines, each with a glowing gradient orb ---- */
-.ggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:1px;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ggrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 .gtier{grid-column:1/-1;background:var(--bg);box-shadow:0 0 0 1px var(--line);font:400 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.14em;color:var(--muted);padding:16px 14px 12px}
 .tile{all:unset;box-sizing:border-box;position:relative;background:var(--panel);display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 10px 16px;text-align:center;cursor:pointer;
   min-width:0;box-shadow:0 0 0 1px var(--line);transition:background .25s;-webkit-tap-highlight-color:transparent}
@@ -116,11 +116,13 @@ body.guide{--bg:#070708;--panel:#0d0d0f;--ink:#f1f2f3;--muted:#8a8a93;--line:#1f
 .rules b{margin-left:4px}
 .about p{font-size:14px;max-width:65ch}
 
+/* Five tiles a row on a computer, four on a tablet, two on a phone. */
+@media (max-width:900px){ .ggrid{grid-template-columns:repeat(4,minmax(0,1fr))} }
 /* Phones: all ten thumbnails fit on one line, and the position chips get their own scrolling row. */
 @media (max-width:600px){
   .thumbs{gap:4px;padding:8px 10px} .thumb{width:24px;height:36px;border-radius:5px} .thumb b{display:none} .playpause{width:32px;margin-left:2px;padding-left:8px}
   .controls #positions{order:3;flex:1 1 100%;flex-wrap:nowrap;overflow-x:auto} .controls input[type=text]{flex:1 1 120px}
-  .hc-line{gap:10px} .ggrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))} .orb{width:76px}
+  .hc-line{gap:10px} .ggrid{grid-template-columns:repeat(2,minmax(0,1fr))} .orb{width:76px}
   .sheet{padding:18px} .sh-top .orb{width:72px} .sh-id h3{font-size:22px}
 }
 @media (prefers-reduced-motion: reduce){ .hcard,.hcard:not(.live) .holo{animation:none} .hcard{transition:opacity .18s} }
