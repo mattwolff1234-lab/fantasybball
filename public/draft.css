@@ -1,0 +1,58 @@
+/* Live draft board: built to fill a TV. One column per team, one row per round, cells coloured by position. */
+:root{--bg:#070708;--ink:#f1f2f3;--muted:#8a8a93;--line:#1f1f23;--panel:#0d0d0f;--gold:#e9c46a;
+  --PG:#a8c1ff;--SG:#8fe0d4;--SF:#a9e3a0;--PF:#ffcf8a;--C:#ffa3b1;
+  --sans:"Helvetica Neue",Helvetica,Arial,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:400 14px/1.2 var(--sans)}
+body{display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+a{color:inherit;text-decoration:none}
+
+.status{align-items:center!important}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:1.4vh 16px;border-bottom:1px solid var(--line)}
+.mark{font:700 clamp(11px,1.5vh,16px)/1 var(--sans);letter-spacing:.18em;text-transform:uppercase;white-space:nowrap}
+.mark span{color:var(--muted);font-weight:400}
+.status{display:flex;align-items:baseline;gap:14px;font:700 clamp(14px,2.4vh,28px)/1 var(--sans);letter-spacing:-.01em;min-width:0}
+.status small{font:400 clamp(11px,1.5vh,16px)/1 var(--mono);color:var(--muted);letter-spacing:.04em;white-space:nowrap}
+.status .clock{font:700 clamp(18px,3.6vh,44px)/1 var(--mono);color:var(--gold);font-variant-numeric:tabular-nums;padding:.5vh 1.2vh;border:1px solid currentColor;border-radius:10px}
+.status .clock.low{color:#ff8f8f}
+.sync{display:flex;align-items:center;gap:8px;font:400 clamp(10px,1.3vh,14px)/1 var(--mono);color:var(--muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.sync.live i{background:#8fe3b0;box-shadow:0 0 0 4px rgba(143,227,176,.18)}
+.sync.down i{background:#ff8f8f}
+
+.wrap{flex:1;min-height:0;overflow:auto;padding:8px}
+.board{display:grid;grid-template-columns:repeat(var(--teams),minmax(0,1fr));grid-template-rows:auto repeat(var(--rounds),minmax(0,1fr));gap:4px;height:100%;min-width:1000px;min-height:620px}
+.team{padding:6px 8px 8px;border-bottom:2px solid var(--line);min-width:0}
+.team b{display:block;font:700 clamp(13px,2.1vh,24px)/1.1 var(--sans);letter-spacing:-.01em}
+.team span{display:block;margin-top:3px;font-size:clamp(10px,1.25vh,14px);color:var(--muted)}
+.team b,.team span,.cell b,.cell .first{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team.now{border-color:var(--gold)}
+.team.now b{color:var(--gold)}
+
+.cell{position:relative;display:flex;flex-direction:column;justify-content:flex-end;min-width:0;min-height:0;padding:4px 8px 5px;border-radius:8px;background:var(--panel);border:1px solid var(--line);overflow:hidden}
+.cell .head{position:absolute;right:-4%;bottom:0;height:86%;pointer-events:none}
+.cell .first,.cell b{position:relative;max-width:68%}
+.cell .num{position:absolute;top:4px;left:8px;font:400 clamp(9px,1.15vh,13px)/1 var(--mono);color:#55555e}
+.cell .meta{position:absolute;top:4px;left:calc(8px + 5.2ch);font:700 clamp(9px,1.15vh,13px)/1 var(--mono);letter-spacing:.04em}
+.cell .first{font-size:clamp(9px,1.2vh,14px);opacity:.75}
+.cell b{font:700 clamp(11px,1.9vh,22px)/1.1 var(--sans);letter-spacing:-.01em}
+.cell.picked{color:#0b0b0d;border-color:transparent;background:var(--muted)}
+.cell.picked .num{color:rgba(11,11,13,.55)}
+.cell.PG{background:var(--PG)}.cell.SG{background:var(--SG)}.cell.SF{background:var(--SF)}.cell.PF{background:var(--PF)}.cell.C{background:var(--C)}
+.cell.now{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold);animation:pulse 1.4s ease-in-out infinite}
+.cell.now .num{color:var(--gold)}
+@keyframes pulse{50%{background:rgba(233,196,106,.16)}}
+
+/* The newest pick, announced large enough to read from the couch. */
+.toast{position:fixed;left:50%;bottom:5vh;transform:translateX(-50%);display:flex;align-items:flex-end;gap:2vw;padding:0 3.2vw 0 1.5vw;overflow:hidden;border-radius:20px;background:var(--ink);color:#0b0b0d;box-shadow:0 20px 80px rgba(0,0,0,.7);text-align:center;visibility:hidden;white-space:nowrap}
+.toast div{display:flex;flex-direction:column;gap:.8vh;padding-block:2.6vh;text-align:left}
+.toast .head{height:clamp(70px,15vh,180px)}
+.toast small{font:400 clamp(11px,1.6vh,18px)/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;opacity:.65}
+.toast b{font:700 clamp(24px,5.4vh,64px)/1 var(--sans);letter-spacing:-.03em}
+.toast span{font:700 clamp(12px,1.9vh,22px)/1 var(--mono);letter-spacing:.06em}
+
+.note{margin:auto;color:var(--muted);font-size:16px}
+/* Short screens have no room for the first name above the surname. */
+@media (max-height:820px){.cell .first{display:none}}
+@media (max-width:700px){.status small{display:none}.mark span{display:none}}
+@media (prefers-reduced-motion:reduce){.cell.now{animation:none}}

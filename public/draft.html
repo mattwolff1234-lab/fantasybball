@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Draft Board · Fantasy Hoops</title>
+<meta name="description" content="The live draft board for our fantasy basketball league.">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/draft.css">
+</head>
+<body>
+<header class="bar">
+  <a class="mark" href="/">Fantasy Hoops <span id="season"></span></a>
+  <div class="status" id="status"></div>
+  <div class="sync" id="sync"><i></i><span>Connecting</span></div>
+</header>
+<div class="wrap"><div class="board" id="board"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const board = document.getElementById("board"), statusBox = document.getElementById("status"), sync = document.getElementById("sync"), toast = document.getElementById("toast");
+// Add ?year=2026 to the address to look at a finished draft from an earlier season.
+const year = new URLSearchParams(location.search).get("year");
+const still = matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+let cells = null, heads = null, made = -1, clockFrom = null, last = null;
+
+// ESPN's official headshot. Players without one (some rookies) just show no picture.
+const headshot = (id, width) => {
+  const img = el("img", "head");
+  img.src = `https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/${id}.png&w=${width}&h=${Math.round(width * .727)}`;
+  img.alt = "";
+  img.onerror = () => img.remove();
+  return img;
+};
+
+const setSync = (cls, text) => { sync.className = "sync " + cls; sync.lastElementChild.textContent = text; };
+
+function build(d) {
+  const rounds = Math.max(...d.picks.map(p => p.round));
+  board.style.setProperty("--teams", d.order.length);
+  board.style.setProperty("--rounds", rounds);
+  heads = {};
+  board.replaceChildren();
+  d.order.forEach(t => {
+    const h = el("div", "team");
+    h.append(el("b", null, t.owner), el("span", null, t.team));
+    heads[t.id] = h;
+    board.append(h);
+  });
+  cells = {};
+  const column = Object.fromEntries(d.order.map((t, i) => [t.id, i + 1]));
+  d.picks.forEach(p => {
+    const c = el("div", "cell");
+    c.style.gridColumn = column[p.teamId];
+    c.style.gridRow = p.round + 1;
+    cells[p.n] = c;
+    board.append(c);
+  });
+  document.getElementById("season").textContent = `· ${d.year - 1}-${String(d.year).slice(2)} draft`;
+}
+
+function fill(cell, p) {
+  const label = `${p.round}.${String(p.slot).padStart(2, "0")}`;
+  if (!p.player) { cell.className = "cell"; delete cell.dataset.player; cell.replaceChildren(el("span", "num", label)); return; }
+  const words = p.player.name.split(" ");
+  cell.className = "cell picked " + p.player.pos;
+  if (cell.dataset.player == p.player.id) return;
+  cell.dataset.player = p.player.id;
+  cell.replaceChildren(headshot(p.player.id, 200), el("span", "num", label), el("span", "meta", [p.player.pos, p.player.team].filter(Boolean).join(" · ")),
+    el("span", "first", words[0]), el("b", null, words.slice(1).join(" ") || words[0]));
+}
+
+function announce(p, owner) {
+  const words = el("div");
+  words.append(el("small", null, `${owner} selects · pick ${p.n}`), el("b", null, p.player.name), el("span", null, [p.player.pos, p.player.team].filter(Boolean).join(" · ")));
+  toast.replaceChildren(headshot(p.player.id, 350), words);
+  gsap.killTweensOf(toast);
+  gsap.timeline()
+    .fromTo(toast, { autoAlpha: 0, y: 60, scale: .9 }, { autoAlpha: 1, y: 0, scale: 1, duration: still ? 0 : .5, ease: "back.out(1.6)" })
+    .to(toast, { autoAlpha: 0, y: 30, duration: still ? 0 : .4, ease: "power2.in" }, "+=4.5");
+}
+
+function showStatus() {
+  if (!last) return;
+  const d = last, next = d.picks.find(p => !p.player);
+  statusBox.replaceChildren();
+  if (d.drafted || !next) { statusBox.append("Draft complete"); return; }
+  if (!d.inProgress) {
+    statusBox.append(d.starts ? "Draft starts " + new Date(d.starts).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }) : "Waiting for the draft to start");
+    return;
+  }
+  const owner = d.order.find(t => t.id === next.teamId);
+  statusBox.append("On the clock: " + (owner ? owner.owner : ""), el("small", null, `Round ${next.round} · pick ${next.slot}`));
+  // ESPN does not share its pick clock, so this one starts when the board sees the previous pick
+  // arrive. It can run a few seconds behind ESPN's.
+  if (clockFrom && d.seconds) {
+    const left = Math.max(0, Math.ceil(d.seconds - (Date.now() - clockFrom) / 1000));
+    statusBox.append(el("span", "clock" + (left <= 10 ? " low" : ""), `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`));
+  }
+}
+
+function render(d) {
+  if (!cells) build(d);
+  const count = d.picks.filter(p => p.player).length, next = d.inProgress ? d.picks.find(p => !p.player) : null;
+  d.picks.forEach(p => {
+    const wasPicked = cells[p.n].classList.contains("picked");
+    fill(cells[p.n], p);
+    if (p.player && !wasPicked && made >= 0) gsap.from(cells[p.n], { scale: .6, opacity: 0, duration: still ? 0 : .6, ease: "back.out(2)" });
+  });
+  Object.values(heads).forEach(h => h.classList.remove("now"));
+  if (next) { cells[next.n].classList.add("now"); heads[next.teamId]?.classList.add("now"); }
+  if (made >= 0 && count > made) {
+    const newest = d.picks.filter(p => p.player).pop();
+    announce(newest, d.order.find(t => t.id === newest.teamId)?.owner || "");
+    clockFrom = Date.now();
+  } else if (made < 0 && next) {
+    // First look at the board: pick up the clock remembered from before a page reload, or for
+    // the very first pick, count from the draft's start time.
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem("draftClock")); } catch (e) {}
+    if (saved && saved.year === d.year && saved.count === count) clockFrom = saved.at;
+    else if (count === 0 && d.starts && Date.now() - d.starts < d.seconds * 1000) clockFrom = d.starts;
+  }
+  if (clockFrom) try { localStorage.setItem("draftClock", JSON.stringify({ year: d.year, count, at: clockFrom })); } catch (e) {}
+  made = count;
+  last = d;
+  showStatus();
+}
+
+async function refresh() {
+  let wait = 3000;
+  try {
+    const r = await fetch("/api/draft" + (year ? "?year=" + encodeURIComponent(year) : ""), { cache: "no-store" });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    render(d);
+    if (d.drafted) { setSync("", "Final"); return; }
+    setSync("live", d.inProgress ? "Live" : "Synced with ESPN");
+  } catch (e) {
+    setSync("down", "Reconnecting");
+    if (!cells) board.replaceChildren(el("p", "note", e.message || "Could not load the draft."));
+    wait = 6000;
+  }
+  setTimeout(refresh, wait);
+}
+refresh();
+setInterval(showStatus, 1000);
+</script>
+</body>
+</html>

@@ -104,9 +104,12 @@ footer{display:flex;justify-content:space-between;gap:16px;border-top:1px solid 
   main>section{padding-top:48px}
   .wide{display:none}
 }
+@media (max-width:540px){
+  .top nav a[href="/schedule.html"]{display:none}
+}
 @media (max-width:420px){
   .top nav{gap:14px}
-  .top nav a[href="/schedule.html"]{display:none}
+  .top nav a[href="#history"]{display:none}
   th,td{padding-left:10px}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
