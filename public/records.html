@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Records · Fantasy Hoops</title>
+<meta name="description" content="The record book for our fantasy basketball league: biggest single games, best benched games and the most lopsided matchups.">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/home.css">
+</head>
+<body>
+<header class="top">
+  <a class="mark" href="/">Fantasy Hoops</a>
+  <nav>
+    <a href="/#history">History</a>
+    <a href="/records.html">Records</a>
+    <a href="/guide.html">Draft guide</a>
+    <a href="/draft.html">Draft board</a>
+  </nav>
+</header>
+
+<section class="hero small">
+  <p class="eyebrow">Since 2018-19</p>
+  <h1>Records</h1>
+  <p class="lede">The best, worst and most painful numbers in league history.</p>
+</section>
+
+<main>
+  <section>
+    <div class="head"><h2>Biggest single games</h2><p>Most fantasy points by one player in one game, while in a starting lineup</p></div>
+    <ol class="games" id="games"></ol>
+  </section>
+
+  <section>
+    <div class="head"><h2>Left on the bench</h2><p>The biggest games that counted for nothing</p></div>
+    <ol class="games" id="bench"></ol>
+  </section>
+
+  <section>
+    <div class="head"><h2>Every owner's best game</h2><p>Each owner's biggest single game from a started player</p></div>
+    <ol class="games" id="owners"></ol>
+  </section>
+
+  <section>
+    <div class="head"><h2>Matchup scores</h2><p>Team totals for one matchup. Some matchups, like the All-Star break and finals, ran longer than a week</p></div>
+    <div class="luck">
+      <div><h3>Highest</h3><ol id="high"></ol></div>
+      <div><h3>Lowest</h3><ol id="low"></ol></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head"><h2>Blowouts and nail-biters</h2><p>Leaves out teams already knocked out in the guillotine year</p></div>
+    <div class="luck">
+      <div><h3>Biggest blowouts</h3><ol id="blowouts"></ol></div>
+      <div><h3>Closest finishes</h3><ol id="closest"></ol></div>
+    </div>
+  </section>
+</main>
+
+<footer><span>fantasyhoops.fun</span><a href="/">Home</a></footer>
+
+<script src="/records-data.js"></script>
+<script>
+const R = window.RECORDS;
+const num = n => n.toLocaleString("en-US", { maximumFractionDigits: 1 });
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const week = r => `${r.season} · ${r.playoff ? "playoffs" : "week " + r.week}`;
+
+const games = (id, rows, showOwnerFirst) => rows.forEach(g => {
+  const li = el("li"), img = el("img"), text = el("div");
+  img.src = `https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/${g.id}.png&w=128&h=93`;
+  img.alt = "";
+  img.loading = "lazy";
+  img.onerror = () => img.style.visibility = "hidden";
+  text.append(el("b", null, showOwnerFirst ? g.owner : g.player), el("p", null, showOwnerFirst ? `${g.player} · ${g.date}` : `${g.owner} · ${g.date}`));
+  li.append(img, text, el("span", "gap", num(g.points)));
+  document.getElementById(id).append(li);
+});
+games("games", R.games);
+games("bench", R.bench);
+games("owners", R.owners, true);
+
+const list = (id, rows, title, value, detail, cls) => rows.forEach(r => {
+  const li = el("li"), line = el("div", "line");
+  line.append(el("b", null, title(r)), el("span", "gap " + (cls || ""), value(r)));
+  li.append(line, el("p", null, detail(r)));
+  document.getElementById(id).append(li);
+});
+list("high", R.high, r => r.owner, r => num(r.points), r => `${week(r)} · against ${r.against}`, "good");
+list("low", R.low, r => r.owner, r => num(r.points), r => `${week(r)} · against ${r.against}`, "bad");
+const versus = r => { const b = el("b"); b.append(r.winner, el("span", "over", " over "), r.loser); return b; };
+const margins = (id, rows) => rows.forEach(r => {
+  const li = el("li"), line = el("div", "line");
+  line.append(versus(r), el("span", "gap", "+" + num(r.margin)));
+  li.append(line, el("p", null, `${week(r)} · ${num(r.winner_points)} to ${num(r.loser_points)}`));
+  document.getElementById(id).append(li);
+});
+margins("blowouts", R.blowouts);
+margins("closest", R.closest);
+</script>
+</body>
+</html>

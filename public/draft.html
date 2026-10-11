@@ -12,12 +12,18 @@
 <header class="bar">
   <a class="mark" href="/">Fantasy Hoops <span id="season"></span></a>
   <div class="status" id="status"></div>
-  <div class="sync" id="sync"><i></i><span>Connecting</span></div>
+  <div class="side">
+    <select class="me" id="me" aria-label="Who are you?"></select>
+    <button class="gbtn" id="gradeBtn" hidden>Grades</button>
+    <div class="sync" id="sync"><i></i><span>Connecting</span></div>
+  </div>
 </header>
 <div class="wrap"><div class="board" id="board"></div></div>
 <div class="toast" id="toast"></div>
+<div class="grades" id="grades"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="/guide-data.js"></script>
 <script>
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const board = document.getElementById("board"), statusBox = document.getElementById("status"), sync = document.getElementById("sync"), toast = document.getElementById("toast");
@@ -36,6 +42,74 @@ const headshot = (id, width) => {
   return img;
 };
 
+// Draft grades compare each pick with the site's draft guide: what a player ranked that high is
+// projected to score, against what the pick's slot normally buys. Only for the current season.
+const guide = year ? null : window.GUIDE;
+const curve = guide && guide.players.map(p => p.total).sort((a, b) => b - a);
+const rankOf = guide && new Map(guide.players.map(p => [p.id, p.rank]));
+const worth = n => curve[Math.min(n, curve.length) - 1];
+const LETTERS = [[1.3, "A+"], [.9, "A"], [.5, "A-"], [.2, "B+"], [-.1, "B"], [-.4, "B-"], [-.7, "C+"], [-1, "C"], [-1.3, "C-"], [-1.7, "D"], [-Infinity, "F"]];
+const gradeBtn = document.getElementById("gradeBtn"), gradeBox = document.getElementById("grades");
+let chips = {}, gradesOpen = false;
+
+function grade(d) {
+  const teams = d.order.map(t => {
+    const picks = d.picks.filter(p => p.teamId === t.id && p.player).map(p => {
+      const rank = rankOf.get(p.player.id) || curve.length;
+      return { ...p, rank, value: worth(rank) - worth(p.n) };
+    });
+    const total = picks.reduce((sum, p) => sum + p.value, 0);
+    return { ...t, picks, total, each: total / (picks.length || 1) };
+  }).filter(t => t.picks.length >= 3);
+  // Graded on a curve against the rest of the league, per pick so uneven pick counts mid-round are fair.
+  const mean = teams.reduce((s, t) => s + t.each, 0) / teams.length;
+  const spread = Math.sqrt(teams.reduce((s, t) => s + (t.each - mean) ** 2, 0) / teams.length);
+  if (teams.length < 2 || !spread) return [];
+  teams.forEach(t => {
+    t.letter = LETTERS.find(([floor]) => (t.each - mean) / spread >= floor)[1];
+    t.steal = t.picks.reduce((a, b) => b.value > a.value ? b : a);
+    t.reach = t.picks.reduce((a, b) => b.value < a.value ? b : a);
+  });
+  return teams.sort((a, b) => b.each - a.each);
+}
+
+function showGrades(d) {
+  const teams = grade(d);
+  Object.values(chips).forEach(c => c.textContent = "");
+  teams.forEach(t => chips[t.id].textContent = t.letter);
+  gradeBtn.hidden = !teams.length;
+  const pick = p => `${p.player.name} at ${p.round}.${String(p.slot).padStart(2, "0")}` + (rankOf.has(p.player.id) ? ` (ranked ${p.rank})` : " (not in the guide)");
+  const box = el("div", "grades-in"), head = el("div", "line");
+  head.append(el("b", null, d.drafted ? "Draft grades" : "Draft grades so far"), el("small", null, "Against the Fantasy Hoops draft guide · click to close"));
+  box.append(head);
+  teams.forEach(t => {
+    const row = el("div", t.owner === me ? "grow mine" : "grow"), text = el("div");
+    text.append(el("b", null, t.owner), el("p", null, "Best value: " + pick(t.steal)));
+    if (t.reach.value < 0) text.append(el("p", null, "Biggest reach: " + pick(t.reach)));
+    row.append(el("span", "letter", t.letter), text, el("span", "pts", (t.total >= 0 ? "+" : "−") + Math.abs(Math.round(t.total)).toLocaleString("en-US")));
+    box.append(row);
+  });
+  gradeBox.replaceChildren(box);
+}
+
+function toggleGrades(show) {
+  gradesOpen = show;
+  gsap.to(gradeBox, { autoAlpha: show ? 1 : 0, duration: still ? 0 : .3 });
+  if (show) gsap.from(gradeBox.querySelectorAll(".grow"), { opacity: 0, y: 20, duration: still ? 0 : .4, stagger: still ? 0 : .05, ease: "power2.out" });
+}
+gradeBtn.addEventListener("click", () => toggleGrades(!gradesOpen));
+gradeBox.addEventListener("click", () => toggleGrades(false));
+
+// "Who are you?": no passwords, just a name remembered on this device so your own team stands out.
+const meBox = document.getElementById("me");
+let me = null;
+try { me = localStorage.getItem("draftMe"); } catch (e) {}
+meBox.addEventListener("change", () => {
+  me = meBox.value || null;
+  try { me ? localStorage.setItem("draftMe", me) : localStorage.removeItem("draftMe"); } catch (e) {}
+  if (last) render(last);
+});
+
 const setSync = (cls, text) => { sync.className = "sync " + cls; sync.lastElementChild.textContent = text; };
 
 function build(d) {
@@ -46,10 +120,13 @@ function build(d) {
   board.replaceChildren();
   d.order.forEach(t => {
     const h = el("div", "team");
-    h.append(el("b", null, t.owner), el("span", null, t.team));
+    chips[t.id] = el("i", "chip");
+    h.append(chips[t.id], el("b", null, t.owner), el("span", null, t.team));
     heads[t.id] = h;
     board.append(h);
   });
+  meBox.replaceChildren(new Option("Who are you?", ""), ...d.order.map(t => new Option(t.owner, t.owner)));
+  meBox.value = d.order.some(t => t.owner === me) ? me : "";
   cells = {};
   const column = Object.fromEntries(d.order.map((t, i) => [t.id, i + 1]));
   d.picks.forEach(p => {
@@ -96,7 +173,7 @@ function showStatus() {
     return;
   }
   const owner = d.order.find(t => t.id === next.teamId);
-  statusBox.append("On the clock: " + (owner ? owner.owner : ""), el("small", null, `Round ${next.round} · pick ${next.slot}`));
+  statusBox.append(owner && owner.owner === me ? "You're on the clock" : "On the clock: " + (owner ? owner.owner : ""), el("small", null, `Round ${next.round} · pick ${next.slot}`));
   // ESPN does not share its pick clock or say when the commissioner pauses, so this countdown
   // starts when the board sees the previous pick arrive and uses ESPN's current seconds-per-pick.
   // If it runs out and still no pick comes, the draft is paused or ESPN is slow: say so rather than sit at 0:00.
@@ -118,7 +195,9 @@ function render(d) {
     fill(cells[p.n], p);
     if (p.player && !wasPicked && made >= 0 && !redrawn) gsap.from(cells[p.n], { scale: .6, opacity: 0, duration: still ? 0 : .6, ease: "back.out(2)" });
   });
-  Object.values(heads).forEach(h => h.classList.remove("now"));
+  const mine = d.order.find(t => t.owner === me);
+  Object.entries(heads).forEach(([id, h]) => { h.classList.remove("now"); h.classList.toggle("mine", !!mine && mine.id == id); });
+  if (mine) d.picks.forEach(p => p.teamId === mine.id && cells[p.n].classList.add("mine"));
   if (next) { cells[next.n].classList.add("now"); heads[next.teamId]?.classList.add("now"); }
   if (made < 0) {
     // First look at the board: pick up the clock remembered from before a page reload, or for
@@ -139,6 +218,11 @@ function render(d) {
     clockFrom = Date.now();
   }
   if (!d.inProgress) clockFrom = null;
+  if (curve) {
+    showGrades(d);
+    // Put the final grades up by themselves the moment the draft finishes.
+    if (last && d.drafted && !last.drafted) toggleGrades(true);
+  }
   try { clockFrom ? localStorage.setItem("draftClock", JSON.stringify({ year: d.year, count, at: clockFrom })) : localStorage.removeItem("draftClock"); } catch (e) {}
   made = count;
   last = d;
