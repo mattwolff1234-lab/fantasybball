@@ -47,16 +47,16 @@ export function rank(players, opts) {
   }
 
   rows.sort((a, b) => b.value - a.value);
-  // Tiers break where the drop to the next player is well above the typical drop nearby.
-  let tier = 1;
+  // Tiers break at the biggest drops: a drop well above the median drop across the draftable pool starts a new tier,
+  // and no tier runs longer than one round.
+  const draftable = Math.min(rows.length, teams * ROSTER);
+  const gaps = rows.slice(1, draftable).map((r, i) => rows[i].value - r.value).sort((x, y) => x - y);
+  const med = gaps[Math.floor(gaps.length / 2)] || 0;
+  let tier = 1, start = 0;
   rows.forEach((r, i) => {
     r.rank = i + 1; r.round = Math.ceil(r.rank / teams);
-    if (i > 0) {
-      const gap = rows[i - 1].value - r.value;
-      const near = rows.slice(Math.max(1, i - 8), i + 8).map((x, j, a) => j ? a[j - 1].value - x.value : 0).slice(1);
-      const typ = near.reduce((s, v) => s + v, 0) / (near.length || 1);
-      if (gap > typ * 2.2 && i - (rows.findIndex(x => x.tier === tier)) >= 3) tier++;
-    }
+    const gap = i ? rows[i - 1].value - r.value : 0;
+    if (i && i - start >= 3 && (gap > med * 3 || i - start >= teams)) { tier++; start = i; }
     r.tier = tier;
   });
   return rows;
