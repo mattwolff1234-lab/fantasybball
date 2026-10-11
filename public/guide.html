@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Draft Guide</title>
+<meta name="description" content="Every player ranked for our league's scoring.">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/guide.css">
+</head>
+<body class="guide">
+<div class="bar"><div>
+  <div>
+    <h1>Draft Guide</h1>
+    <p class="sub">2026-27 · every player ranked for our league's scoring</p>
+  </div>
+  <a class="navlink" href="/">Draft scheduling</a>
+</div></div>
+
+<section class="stage" id="stage" aria-label="Top ten players">
+  <h2 class="plain">The top ten</h2>
+  <div class="tilt"><article class="hcard" id="card" tabindex="0"></article></div>
+  <div class="thumbs" id="thumbs"></div>
+</section>
+
+<div class="controls"><div>
+  <input type="text" id="search" inputmode="search" autocomplete="off" placeholder="Search players" aria-label="Search players">
+  <span id="positions" class="quick"></span>
+  <select id="sort" aria-label="Sort by">
+    <option value="rank">Sort: draft rank</option>
+    <option value="ppg">Sort: points per game</option>
+    <option value="total">Sort: season points</option>
+  </select>
+</div></div>
+
+<main>
+  <p class="count" id="count"></p>
+  <div class="ggrid" id="list"></div>
+
+  <section class="panel about">
+    <h2>How this is ranked</h2>
+    <p>Each player's projected stats for this season are run through our league's scoring. Players are then ordered by how many points they add over a free-agent pickup across the games they are expected to play, so a star who misses time drops a little.</p>
+    <div class="rules" id="rules"></div>
+    <p class="note">Points, assists, steals, blocks and games played are ESPN's projections. ESPN does not project double-doubles or split rebounds into offensive and defensive, so those are estimated from last season. "Steal" means ESPN's own ranking has the player at least 8 spots lower than this guide does; "reach" means at least 8 spots higher.</p>
+    <p class="note" id="updated"></p>
+  </section>
+</main>
+
+<dialog class="sheet" id="sheet" aria-label="Player details"><button class="x" aria-label="Close">&times;</button><div id="sheetbody"></div></dialog>
+
+<script src="/guide-data.js"></script>
+<script>
+const G = window.GUIDE, P = G.players, TOP = P.slice(0, 10);
+const photo = id => `https://a.espncdn.com/i/headshots/nba/players/full/${id}.png`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const initials = n => n.split(" ").map(w => w[0]).slice(0, 2).join("");
+const one = n => n.toFixed(1);
+
+/* ---- Top ten cards ---- */
+const stage = document.getElementById("stage"), card = document.getElementById("card"), thumbs = document.getElementById("thumbs");
+const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let current = 0, paused = calm;
+const ICONS = { pause: '<svg viewBox="0 0 14 14" aria-hidden="true"><rect x="2" y="1" width="4" height="12"/><rect x="8" y="1" width="4" height="12"/></svg>',
+                play: '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 1l10 6-10 6z"/></svg>' };
+
+function fillCard(p, i) {
+  card.style.setProperty("--hue", (i * 47) % 360 + "deg");
+  card.dataset.id = p.id;
+  card.setAttribute("aria-label", `Number ${p.rank}, ${p.name}. Open his full breakdown.`);
+  card.innerHTML =
+    `<div class="hc-top"><div class="hc-brand">Fantasy<br>Hoops<small>2026-27 draft guide</small></div><div class="hc-rank holo">${String(p.rank).padStart(2, "0")}</div></div>` +
+    `<div class="hc-photo"><span class="ini">${esc(initials(p.name))}</span><img src="${photo(p.id)}" alt="" draggable="false" onerror="this.remove()"></div>` +
+    `<div class="hc-name holo">${esc(p.name)}</div><div class="hc-dash"></div>` +
+    `<div class="hc-meta">${p.pos} · ${p.team}${p.injury ? " · " + esc(p.injury) : ""}</div>` +
+    `<div class="hc-stats"><div class="hc-big">${one(p.ppg)}<small>Fantasy pts / game</small></div>` +
+    `<div class="hc-line"><span>${one(p.line.pts)}<small>PTS</small></span><span>${one(p.line.reb)}<small>REB</small></span><span>${one(p.line.ast)}<small>AST</small></span></div></div>`;
+}
+function show(i, instant) {
+  current = (i + TOP.length) % TOP.length;
+  thumbs.querySelectorAll(".thumb").forEach((t, n) => t.setAttribute("aria-current", n === current));
+  if (instant) return fillCard(TOP[current], current);
+  card.classList.add("swap");
+  setTimeout(() => { fillCard(TOP[current], current); card.classList.remove("swap"); }, 180);
+}
+function setPaused(p) {
+  paused = p;
+  thumbs.classList.toggle("paused", paused);
+  const b = thumbs.querySelector(".playpause");
+  b.innerHTML = paused ? ICONS.play : ICONS.pause;
+  b.setAttribute("aria-label", paused ? "Play" : "Pause");
+}
+thumbs.innerHTML = TOP.map((p, i) =>
+  `<button class="thumb" data-i="${i}" aria-label="${esc(p.name)}"><img src="${photo(p.id)}" alt="" loading="lazy" onerror="this.remove()"><b>${p.rank}</b><i></i></button>`
+).join("") + `<button class="playpause"></button>`;
+thumbs.addEventListener("click", e => {
+  const t = e.target.closest(".thumb");
+  if (t) show(+t.dataset.i);
+  else if (e.target.closest(".playpause")) setPaused(!paused);
+});
+// The progress bar under the active thumbnail doubles as the timer.
+thumbs.addEventListener("animationend", e => { if (e.animationName === "tick") show(current + 1); });
+show(0, true);
+setPaused(paused);
+
+stage.addEventListener("pointermove", e => {
+  const r = card.parentElement.getBoundingClientRect();
+  const x = Math.min(1.4, Math.max(-0.4, (e.clientX - r.left) / r.width)), y = Math.min(1.3, Math.max(-0.3, (e.clientY - r.top) / r.height));
+  card.classList.add("live");
+  card.style.setProperty("--ry", (x - 0.5) * 34 + "deg");
+  card.style.setProperty("--rx", (0.5 - y) * 26 + "deg");
+  card.style.setProperty("--tx", (x - 0.5) * 2);
+  card.style.setProperty("--ty", (y - 0.5) * 2);
+  card.style.setProperty("--mx", x);
+});
+const rest = () => { card.classList.remove("live"); ["--rx", "--ry", "--tx", "--ty", "--mx"].forEach(v => card.style.removeProperty(v)); };
+stage.addEventListener("pointerleave", rest);
+stage.addEventListener("pointercancel", rest);
+const openFromCard = () => openPlayer(+card.dataset.id);
+card.addEventListener("click", openFromCard);
+card.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openFromCard(); } });
+
+/* ---- Full ranking ---- */
+const list = document.getElementById("list"), search = document.getElementById("search"), sort = document.getElementById("sort"), positions = document.getElementById("positions");
+let pos = "";
+positions.innerHTML = ["All", "PG", "SG", "SF", "PF", "C"].map(p => `<button class="pick" data-pos="${p === "All" ? "" : p}" aria-pressed="${p === "All"}">${p}</button>`).join("");
+
+const sheet = document.getElementById("sheet"), sheetBody = document.getElementById("sheetbody");
+// Every player gets his own three-colour orb, picked from his ESPN id so it never changes.
+// Players are grouped by the draft round their rank falls in (10 teams, 13 rounds).
+const round = p => p.rank <= 130 ? "Round " + Math.ceil(p.rank / 10) : "Likely undrafted";
+const hues = p => `--h1:${p.id * 137 % 360};--h2:${p.id * 59 % 360};--h3:${p.id * 211 % 360}`;
+const orb = p => `<span class="orb" style="${hues(p)}">${esc(initials(p.name))}<img src="${photo(p.id)}" alt="" loading="lazy" onerror="this.remove()"></span>`;
+function verdict(p) {
+  const diff = p.espn && p.rank <= 200 ? p.espn - p.rank : 0;
+  return diff >= 8 ? ["good", `ESPN #${p.espn} · steal`] : diff <= -8 ? ["reach", `ESPN #${p.espn} · reach`] : null;
+}
+function tileHtml(p) {
+  const v = verdict(p);
+  const note = p.injury ? `<em class="inj">${esc(p.injury)}</em>` : v ? `<em class="${v[0]}">${v[1]}</em>` : `<em></em>`;
+  return `<button class="tile" data-id="${p.id}"><span class="t-top"><span>#${p.rank}</span><b>${one(p.ppg)}</b></span>` +
+    `${orb(p)}<b>${esc(p.name)}</b><small>${p.pos} · ${p.team}</small>${note}</button>`;
+}
+function detailHtml(p) {
+  const l = p.line, v = verdict(p);
+  const stats = [["PTS", one(l.pts)], ["REB", one(l.reb)], ["AST", one(l.ast)], ["STL", one(l.stl)], ["BLK", one(l.blk)],
+                 ["3PM", one(l.tpm)], ["TO", one(l.to)], ["MIN", one(l.min)], ["FG%", one(l.fg * 100)], ["FT%", one(l.ft * 100)]];
+  const parts = Object.entries(p.parts), top = Math.max(...parts.map(([, x]) => Math.abs(x)), 1);
+  const espn = v ? `<span class="${v[0]}">${v[1]}</span>` : p.espn ? `<span>ESPN #${p.espn}</span>` : "";
+  return `<div class="sh-top">${orb(p)}<div class="sh-id"><span>#${p.rank} · ${round(p)}</span>` +
+    `<h3 class="holo">${esc(p.name)}</h3><span>${p.pos} · ${p.team}</span>${p.injury ? `<span class="inj">${esc(p.injury)}</span>` : ""}${espn}</div></div>` +
+    `<div class="sh-big">${one(p.ppg)}<small>Fantasy points per game</small></div>` +
+    `<div class="pdetail"><div class="statgrid">${stats.map(([k, x]) => `<div>${x}<small>${k}</small></div>`).join("")}</div>` +
+    `<div><span class="lbl">Where the fantasy points come from, per game</span><div class="parts">${parts.map(([k, x]) =>
+      `<span>${k}</span><span class="track${x < 0 ? " neg" : ""}"><span class="fill" style="display:block;width:${Math.abs(x) / top * 100}%"></span></span><span class="num">${x > 0 ? "+" : ""}${one(x)}</span>`).join("")}</div></div>` +
+    `<p class="facts">Projected for ${p.gp} games and ${p.total.toLocaleString()} points this season.</p></div>`;
+}
+function render() {
+  const q = search.value.trim().toLowerCase();
+  let rows = P.filter(p => (!pos || p.pos === pos) && (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase() === q));
+  const by = sort.value;
+  if (by !== "rank") rows = rows.slice().sort((a, b) => b[by] - a[by]);
+  let html = "", group = "";
+  for (const p of rows) {
+    if (by === "rank" && round(p) !== group) { group = round(p); html += `<div class="gtier">${group}</div>`; }
+    html += tileHtml(p);
+  }
+  list.innerHTML = html || `<div class="empty">No players match. Try a different name or position.</div>`;
+  document.getElementById("count").textContent = `${rows.length} of ${P.length} players`;
+}
+function openPlayer(id) {
+  sheetBody.innerHTML = detailHtml(P.find(p => p.id === id));
+  sheet.showModal();
+}
+list.addEventListener("click", e => { const t = e.target.closest(".tile"); if (t) openPlayer(+t.dataset.id); });
+sheet.addEventListener("click", e => { if (e.target === sheet || e.target.closest(".x")) sheet.close(); });
+search.addEventListener("input", render);
+sort.addEventListener("change", render);
+positions.addEventListener("click", e => {
+  const b = e.target.closest(".pick");
+  if (!b) return;
+  pos = b.dataset.pos;
+  positions.querySelectorAll(".pick").forEach(x => x.setAttribute("aria-pressed", x === b));
+  render();
+});
+document.getElementById("rules").innerHTML = G.rules.map(([name, pts]) => `<span>${name}<b>${pts > 0 ? "+" : ""}${pts}</b></span>`).join("");
+document.getElementById("updated").textContent = `Projections last pulled from ESPN on ${G.updated}.`;
+render();
+</script>
+</body>
+</html>
