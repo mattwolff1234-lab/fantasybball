@@ -80,6 +80,8 @@ function simulate(d, players) {
   // Best players first: on a crowded night the lineup takes the top ones and the rest sit.
   rosters.forEach(r => r.sort((x, y) => y.ppg - x.ppg));
   const ppg = rosters.map(r => r.map(p => p.ppg)), plays = rosters.map(r => r.map(p => Math.min(1, p.gp / 82) * GAMES_PER_DAY));
+  // When a player's team plays but he is out, a free pickup fills in only some of the time.
+  const pickup = d.replacement || 0, covered = d.covered || 0;
 
   const rand = dice(20270000 + taken.size), score = rosters.map(() => new Float64Array(total));
   const wins = new Float64Array(T), playoffs = new Float64Array(T), titles = new Float64Array(T), points = new Float64Array(T);
@@ -94,7 +96,9 @@ function simulate(d, players) {
         for (let day = 0; day < 7; day++) {
           let used = 0;
           for (let i = 0; i < size && used < starters; i++) {
-            if (rand() < pl[i]) { used++; sum += pp[i] * (1 + NOISE * 2 * (rand() + rand() + rand() - 1.5)); }
+            const roll = rand();
+            if (roll < pl[i]) { used++; sum += pp[i] * (1 + NOISE * 2 * (rand() + rand() + rand() - 1.5)); }
+            else if (roll < GAMES_PER_DAY && rand() < covered) { used++; sum += pickup * (1 + NOISE * 2 * (rand() + rand() + rand() - 1.5)); }
           }
         }
         sc[k] = sum;
@@ -152,7 +156,7 @@ function showGrades(d) {
   if (!sim || sim.key !== key) {
     if (asked !== key) {
       asked = key;
-      simWorker.postMessage({ key, d: { order: d.order, picks: d.picks, league: d.league }, players: guide.players.map(p => ({ id: p.id, ppg: p.ppg, gp: p.gp })) });
+      simWorker.postMessage({ key, d: { order: d.order, picks: d.picks, league: d.league, replacement: guide.replacement, covered: guide.covered }, players: guide.players.map(p => ({ id: p.id, ppg: p.ppg, gp: p.gp })) });
     }
     return;
   }
