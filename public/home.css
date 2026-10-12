@@ -41,6 +41,9 @@ h3{font:400 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;col
 .side p{margin-right:6px}
 .arrow{width:32px;height:32px;border-radius:50%;border:1px solid #33343a;background:none;color:var(--ink);font:400 14px/1 var(--sans);cursor:pointer;transition:border-color .15s}
 .arrow:hover{border-color:var(--ink)}
+.toggle{font:700 12px/1 var(--sans);padding:9px 14px;border-radius:999px;border:1px solid #33343a;background:none;color:var(--ink);cursor:pointer;white-space:nowrap}
+.toggle:hover{border-color:var(--ink)}
+.toggle[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#09090b}
 
 /* Hall of Fame: champions on a sideways timeline, newest first. The line runs behind the dots. */
 .timeline{display:flex;gap:20px;overflow-x:auto;margin-inline:-20px;padding:4px 20px 20px;scrollbar-width:none;cursor:grab;user-select:none;-webkit-user-select:none}

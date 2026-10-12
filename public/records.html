@@ -43,6 +43,17 @@
   </section>
 
   <section>
+    <div class="head"><h2>Worst draft picks</h2><div class="side"><p>Fantasy points that season, against what a pick that high should have bought</p>
+      <button class="toggle" id="healthy" aria-pressed="false">Healthy players only</button></div></div>
+    <ol class="games" id="worstPicks"></ol>
+  </section>
+
+  <section>
+    <div class="head"><h2>Best draft picks</h2><p>The biggest bargains in eight drafts</p></div>
+    <ol class="games" id="bestPicks"></ol>
+  </section>
+
+  <section>
     <div class="head"><h2>Matchup scores</h2><p>Team totals for one matchup. Some matchups, like the All-Star break and finals, ran longer than a week</p></div>
     <div class="luck">
       <div><h3>Highest</h3><ol id="high"></ol></div>
@@ -81,6 +92,28 @@ const games = (id, rows, showOwnerFirst) => rows.forEach(g => {
 games("games", R.games);
 games("bench", R.bench);
 games("owners", R.owners, true);
+
+// Draft picks reuse the single-game rows: headshot, player, then who took him and what he did.
+const picks = (id, rows, cls) => document.getElementById(id).replaceChildren() || rows.forEach(p => {
+  const li = el("li"), img = el("img"), text = el("div");
+  img.src = `https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/${p.id}.png&w=128&h=93`;
+  img.alt = "";
+  img.loading = "lazy";
+  img.onerror = () => img.style.visibility = "hidden";
+  text.append(el("b", null, p.player), el("p", null, `${p.owner} · ${p.season} · pick ${p.pick} (round ${p.round}) · ${num(p.points)} points in ${p.games} games`));
+  li.append(img, text, el("span", "gap " + cls, (p.diff > 0 ? "+" : "−") + num(Math.abs(p.diff))));
+  document.getElementById(id).append(li);
+});
+picks("worstPicks", R.worst_picks, "bad");
+// The worst picks are all injuries. The filter keeps only players who played most of the season,
+// which leaves the ones who were simply bad for where they were taken.
+const healthy = document.getElementById("healthy");
+healthy.addEventListener("click", () => {
+  const on = healthy.getAttribute("aria-pressed") !== "true";
+  healthy.setAttribute("aria-pressed", on);
+  picks("worstPicks", on ? R.worst_healthy : R.worst_picks, "bad");
+});
+picks("bestPicks", R.best_picks, "good");
 
 const list = (id, rows, title, value, detail, cls) => rows.forEach(r => {
   const li = el("li"), line = el("div", "line");
