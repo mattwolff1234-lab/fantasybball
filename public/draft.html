@@ -14,6 +14,7 @@
   <div class="status" id="status"></div>
   <div class="side">
     <select class="me" id="me" aria-label="Who are you?"></select>
+    <button class="gbtn" id="seasonBtn" hidden>Play season</button>
     <button class="gbtn" id="gradeBtn" hidden>Grades</button>
     <div class="sync" id="sync"><i></i><span>Connecting</span></div>
   </div>
@@ -21,6 +22,7 @@
 <div class="wrap"><div class="board" id="board"></div></div>
 <div class="toast" id="toast"></div>
 <div class="grades" id="grades"></div>
+<div class="season" id="seasonShow"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script src="/guide-data.js"></script>
@@ -173,7 +175,7 @@ function showGrades(d) {
     }
     letters[t.id] = t.letter;
   });
-  gradeBtn.hidden = !count;
+  gradeBtn.hidden = seasonBtn.hidden = !count;
 
   const pick = p => `${p.player.name} at ${p.round}.${String(p.slot).padStart(2, "0")}` + (rankOf.has(p.player.id) ? ` (ranked ${p.rank})` : " (not in the guide)");
   const box = el("div", "grades-in"), head = el("div", "line"), cols = el("div", "grow ghead");
@@ -199,6 +201,213 @@ function toggleGrades(show) {
 }
 gradeBtn.addEventListener("click", () => toggleGrades(!gradesOpen));
 gradeBox.addEventListener("click", () => toggleGrades(false));
+
+// "Play the season": one random season from the same model the grades use, played as a show.
+// Weeks tick by month by month, the standings bars race, a player of the week pops up, stars
+// get hurt, then the playoffs and a champion. Every press rolls a different season.
+const seasonBox = document.getElementById("seasonShow"), seasonBtn = document.getElementById("seasonBtn");
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const faceUrl = (id, width) => `https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/${id}.png&w=${width}&h=${Math.round(width * .727)}`;
+let showing = null;
+
+function rollSeason(d) {
+  const L = d.league || {}, starters = L.starters || 10, weeks = L.weeks || 19, spots = Math.min(L.playoffTeams || 7, d.order.length);
+  const pickup = guide.replacement || 0, covered = guide.covered || 0;
+  const inGuide = new Map(guide.players.map(p => [p.id, p])), filler = guide.players[guide.players.length - 1];
+  const taken = new Set(d.picks.filter(p => p.player).map(p => p.player.id)), left = guide.players.filter(p => !taken.has(p.id));
+  const teams = d.order.map(t => ({ ...t, wins: 0, losses: 0, pf: 0, roster: [] })), byId = Object.fromEntries(teams.map(t => [t.id, t]));
+  let next = 0;
+  // Rosters: real picks, then the best players left in guide order for any pick not made yet.
+  d.picks.forEach(p => {
+    const g = p.player ? inGuide.get(p.player.id) || { ...filler, id: p.player.id, name: p.player.name } : left[next++] || filler;
+    byId[p.teamId].roster.push({ id: g.id, name: g.name, ppg: g.ppg, miss: 1 - Math.min(1, g.gp / 82), out: 0, week: 0 });
+  });
+  teams.forEach(t => t.roster.sort((x, y) => y.ppg - x.ppg));
+  const swing = () => 1 + NOISE * 2 * (Math.random() + Math.random() + Math.random() - 1.5);
+
+  // One week for one team. Injuries come in spells of one to four weeks, sized so each player
+  // misses about as many games over a season as the guide projects.
+  const playWeek = t => {
+    const hurt = [];
+    let total = 0;
+    t.roster.forEach(p => {
+      p.week = 0;
+      // His NBA team plays three or four games this week, on random days.
+      p.days = 0;
+      for (let games = Math.random() < .45 ? 4 : 3; games;) { const bit = 1 << Math.floor(Math.random() * 7); if (!(p.days & bit)) { p.days |= bit; games--; } }
+      if (!p.out && Math.random() < Math.min(.9, p.miss / (2.5 * (1 - p.miss) || 1))) { p.out = 1 + Math.floor(Math.random() * 4); hurt.push({ name: p.name, id: p.id, ppg: p.ppg, weeks: p.out, owner: t.owner }); }
+    });
+    for (let day = 0; day < 7; day++) {
+      let used = 0;
+      for (const p of t.roster) {
+        if (used >= starters) break;
+        if (!(p.days >> day & 1)) continue;
+        if (!p.out) { const s = p.ppg * swing(); p.week += s; total += s; used++; }
+        else if (Math.random() < covered) { total += pickup * swing(); used++; }
+      }
+    }
+    const best = t.roster.reduce((x, y) => y.week > x.week ? y : x);
+    t.roster.forEach(p => { if (p.out) p.out--; });
+    return { total, hurt, best: { id: best.id, name: best.name, points: best.week, owner: t.owner } };
+  };
+
+  const order = teams.map((_, i) => i).sort(() => Math.random() - .5), T = teams.length;
+  const spot = (j, k) => teams[j === 0 ? order[0] : order[1 + (j - 1 + k) % (T - 1)]];
+  const ranked = () => teams.slice().sort((x, y) => y.wins - x.wins || y.pf - x.pf);
+  const start = new Date(2026, 9, 19), log = [];
+  for (let k = 0; k < weeks; k++) {
+    const played = new Map(teams.map(t => [t.id, playWeek(t)]));
+    for (let i = 0; i < T >> 1; i++) {
+      const x = spot(i, k), y = spot(T - 1 - i, k), win = played.get(x.id).total >= played.get(y.id).total;
+      (win ? x : y).wins++; (win ? y : x).losses++;
+    }
+    teams.forEach(t => t.pf += played.get(t.id).total);
+    const all = [...played.values()];
+    log.push({
+      n: k + 1, month: MONTHS[new Date(start.getTime() + k * 7 * 864e5).getMonth()],
+      standings: ranked().map(t => ({ id: t.id, wins: t.wins, losses: t.losses, face: played.get(t.id).best.id })),
+      star: all.map(w => w.best).reduce((x, y) => y.points > x.points ? y : x),
+      // Only injuries to real stars make the ticker.
+      hurt: all.flatMap(w => w.hurt).filter(h => h.ppg >= 55).sort((x, y) => y.ppg - x.ppg).slice(0, 2),
+    });
+  }
+  // Playoffs: best records get in, the top seed sits out a round when the field is odd.
+  let alive = ranked().slice(0, spots);
+  const seed = new Map(alive.map((t, i) => [t.id, i + 1])), rounds = [];
+  while (alive.length > 1) {
+    const bye = alive.length % 2 ? alive[0] : null, rest = bye ? alive.slice(1) : alive, through = bye ? [bye] : [], games = [];
+    for (let i = 0; i < rest.length >> 1; i++) {
+      const x = rest[i], y = rest[rest.length - 1 - i], sx = playWeek(x).total, sy = playWeek(y).total, won = sx >= sy ? x : y;
+      games.push({ a: x.owner, sa: sx, seedA: seed.get(x.id), b: y.owner, sb: sy, seedB: seed.get(y.id), winner: won.owner });
+      through.push(won);
+    }
+    rounds.push({ name: rest.length + (bye ? 1 : 0) > 4 ? "Quarterfinals" : rest.length > 2 ? "Semifinals" : "Final", bye: bye && bye.owner, games });
+    alive = through.sort((x, y) => seed.get(x.id) - seed.get(y.id));
+  }
+  const champ = alive[0];
+  return { weeks, log, rounds, champ: { owner: champ.owner, team: champ.team, record: `${champ.wins}-${champ.losses}`, seed: seed.get(champ.id), stars: champ.roster.slice(0, 3) } };
+}
+
+function playSeason() {
+  if (!last || !guide) return;
+  stopSeason();
+  const s = rollSeason(last), fast = still ? 4 : 1;
+  const month = el("div", "s-month"), week = el("div", "s-week"), bar = el("i"), track = el("div", "s-track");
+  const race = el("div", "race"), side = el("div", "s-side"), stage = el("div", "s-stage"), again = el("button", "gbtn", "Play another season"), close = el("button", "gbtn quiet", "Close");
+  const head = el("div", "s-head"), buttons = el("div", "s-buttons"), title = el("div");
+  track.append(bar);
+  title.append(month, week);
+  buttons.append(again, close);
+  head.append(title, track, buttons);
+  const card = el("div", "s-card"), ticker = el("div", "s-ticker");
+  side.append(el("h3", null, "Player of the week"), card, el("h3", null, "Injury report"), ticker);
+  stage.append(race, side);
+  const box = el("div", "s-in");
+  box.append(head, stage);
+  seasonBox.replaceChildren(box);
+  again.addEventListener("click", playSeason);
+  close.addEventListener("click", stopSeason);
+
+  // One bar per team. Rows are placed by hand so they can slide past each other as the standings change.
+  const rows = {}, step = 100 / last.order.length;
+  last.order.forEach((t, i) => {
+    const row = el("div", "rrow"), face = el("img"), fill = el("i"), line = el("div", "rbar"), rec = el("span", "rrec", "0-0"), rank = el("span", "rrank", i + 1);
+    face.alt = "";
+    face.onerror = () => face.style.visibility = "hidden";
+    line.append(fill);
+    row.append(rank, face, el("b", t.owner === me ? "mine" : null, t.owner), line, rec);
+    row.style.height = step + "%";
+    row.style.top = i * step + "%";
+    race.append(row);
+    rows[t.id] = { row, face, fill, rec, rank, at: i };
+  });
+
+  const tl = showing = gsap.timeline({ defaults: { ease: "power2.inOut" } });
+  gsap.set(seasonBox, { autoAlpha: 1 });
+  tl.from(box, { opacity: 0, y: 40, duration: .5 });
+  s.log.forEach((w, k) => {
+    const at = .6 + k * 2;
+    tl.call(() => {
+      if (month.textContent !== w.month) { month.textContent = w.month; gsap.fromTo(month, { y: -24, opacity: 0 }, { y: 0, opacity: 1, duration: .5, ease: "back.out(2)" }); }
+      week.textContent = `Week ${w.n} of ${s.weeks}`;
+      w.standings.forEach((t, i) => {
+        const r = rows[t.id];
+        r.rec.textContent = `${t.wins}-${t.losses}`;
+        r.rank.textContent = i + 1;
+        r.face.style.visibility = "";
+        r.face.src = faceUrl(t.face, 96);
+      });
+      card.replaceChildren(Object.assign(el("img"), { src: faceUrl(w.star.id, 260), alt: "" }), el("b", null, w.star.name), el("span", null, `${Math.round(w.star.points)} points · ${w.star.owner}`));
+      gsap.fromTo(card, { scale: .85, opacity: 0 }, { scale: 1, opacity: 1, duration: .45, ease: "back.out(1.8)" });
+      w.hurt.forEach(h => {
+        const line = el("p", null, `${h.name} out ${h.weeks} week${h.weeks > 1 ? "s" : ""} · ${h.owner}`);
+        ticker.prepend(line);
+        gsap.from(line, { x: 40, opacity: 0, duration: .4 });
+        while (ticker.children.length > 6) ticker.lastChild.remove();
+      });
+    }, null, at);
+    tl.to(bar, { width: 100 * w.n / s.weeks + "%", duration: 1.6, ease: "none" }, at);
+    w.standings.forEach((t, i) => {
+      const r = rows[t.id];
+      tl.to(r.row, { top: i * step + "%", duration: .9 }, at + .1);
+      tl.to(r.fill, { width: 100 * t.wins / s.weeks + "%", duration: .9 }, at + .1);
+    });
+  });
+
+  // Playoffs: the bars step aside and each round's matchups count up to their final scores.
+  const bracket = el("div", "bracket");
+  tl.call(() => { month.textContent = "Playoffs"; week.textContent = `Top ${s.rounds[0].games.length * 2 + (s.rounds[0].bye ? 1 : 0)} teams`; });
+  tl.to(race, { opacity: 0, duration: .5 });
+  tl.call(() => { race.replaceWith(bracket); side.style.display = "none"; });
+  s.rounds.forEach(round => {
+    tl.call(() => {
+      week.textContent = round.name;
+      bracket.replaceChildren(el("h2", null, round.name));
+      if (round.bye) bracket.append(el("p", "bye", `${round.bye} has the bye`));
+      round.games.forEach(g => {
+        const game = el("div", "game"), sides = [[g.a, g.sa, g.seedA], [g.b, g.sb, g.seedB]].map(([name, score, sd]) => {
+          const line = el("div", "gside"), num = el("span", "pts", "0"), count = { v: 0 };
+          line.append(el("small", null, "#" + sd), el("b", name === me ? "mine" : null, name), num);
+          gsap.to(count, { v: score, duration: 2.2 / fast, ease: "power1.out", onUpdate: () => num.textContent = Math.round(count.v).toLocaleString("en-US") });
+          gsap.delayedCall(2.4 / fast, () => line.classList.add(name === g.winner ? "won" : "lost"));
+          return line;
+        });
+        game.append(...sides);
+        bracket.append(game);
+      });
+      gsap.from(bracket.children, { opacity: 0, y: 30, duration: .5, stagger: .1 });
+    });
+    tl.to({}, { duration: 4.2 });
+  });
+
+  // The champion, with confetti.
+  tl.call(() => {
+    const crown = el("div", "crown"), faces = el("div", "faces");
+    s.champ.stars.forEach(p => faces.append(Object.assign(el("img"), { src: faceUrl(p.id, 260), alt: "", onerror() { this.remove(); } })));
+    crown.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 5H5v1a3 3 0 0 0 3 3M16 5h3v1a3 3 0 0 1-3 3M12 13v4M10 17h4v3h-4zM8.5 20h7"/></svg>';
+    crown.append(el("small", null, "Champion of this season"), el("h2", null, s.champ.owner), el("p", null, `${s.champ.team} · ${s.champ.record} · #${s.champ.seed} seed`), faces);
+    month.textContent = "Champion";
+    week.textContent = "One simulated season. Press play for another.";
+    bracket.replaceChildren(crown);
+    gsap.from(crown.children, { opacity: 0, y: 40, scale: .8, duration: .7, stagger: .12, ease: "back.out(1.6)" });
+    for (let i = 0; i < 90; i++) {
+      const bit = el("i", "confetti");
+      bit.style.cssText = `left:${Math.random() * 100}%;background:hsl(${Math.random() * 360} 90% 65%)`;
+      box.append(bit);
+      gsap.fromTo(bit, { y: -20, rotation: 0 }, { y: innerHeight + 40, x: (Math.random() - .5) * 300, rotation: Math.random() * 720, duration: 2.5 + Math.random() * 2.5, delay: Math.random() * 1.5, ease: "none", onComplete: () => bit.remove() });
+    }
+  });
+  tl.timeScale(fast);
+}
+
+function stopSeason() {
+  if (showing) showing.kill();
+  showing = null;
+  gsap.killTweensOf(seasonBox.querySelectorAll("*"));
+  gsap.set(seasonBox, { autoAlpha: 0 });
+  seasonBox.replaceChildren();
+}
+seasonBtn.addEventListener("click", playSeason);
 
 // "Who are you?": no passwords, just a name remembered on this device so your own team stands out.
 const meBox = document.getElementById("me");

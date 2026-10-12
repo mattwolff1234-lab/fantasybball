@@ -1,17 +1,8 @@
-// Live draft board: reads the draft from ESPN using the league's login, which is kept in
-// Vercel's settings (ESPN_S2, SWID, LEAGUE_ID) and never in the repo. The browser only gets
-// first names, team names and picks.
+// Live draft board: reads the draft from ESPN. The browser only gets first names, team names
+// and picks.
 import { list, put } from "@vercel/blob";
 import { createHash } from "node:crypto";
-
-const SEASON = 2027; // ESPN names a season by the year it ends in
-const POS = { 1: "PG", 2: "SG", 3: "SF", 4: "PF", 5: "C" };
-const NBA = ["", "ATL", "BOS", "NOP", "CHI", "CLE", "DAL", "DEN", "DET", "GSW", "HOU", "IND", "LAC", "LAL", "MIA", "MIL", "MIN", "BKN", "NYK", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "OKC", "UTA", "WAS", "TOR", "MEM", "CHA"];
-// ESPN account names that belong to someone else, and the short names the site uses.
-const SAME_PERSON = { "harc bark": "Ben Einzig", "umar ahmad": "Mack Harris", "team 10": "Dean Bowie", "anthony grbic": "John Grbic" };
-const SHORT = { "Matt Wolff": "Matt W", "Matthew Glickman": "Matt G", "Sam Resnick": "Sammy" };
-
-const BASE = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/fba/seasons/";
+import { SEASON, POS, NBA, BASE, connected, espn, teamsOf } from "../lib/espn.js";
 
 // ESPN's list of every NBA player (name, position, team) for a season. Kept in memory while
 // the server is warm, so it is downloaded once rather than on every refresh.
@@ -24,13 +15,6 @@ async function players(year) {
     playerLists.set(year, new Map((await r.json()).map(p => [p.id, { id: p.id, name: p.fullName, pos: POS[p.defaultPositionId] || "", team: NBA[p.proTeamId] || "" }])));
   }
   return playerLists.get(year);
-}
-
-async function espn(year, views) {
-  const { ESPN_S2, SWID, LEAGUE_ID } = process.env;
-  const r = await fetch(`${BASE}${year}/segments/0/leagues/${LEAGUE_ID}?` + views.map(v => "view=" + v).join("&"), { headers: { Cookie: `espn_s2=${ESPN_S2}; SWID=${SWID}` } });
-  if (!r.ok) throw new Error("ESPN answered " + r.status);
-  return r.json();
 }
 
 // ESPN's data feed does not show picks until the draft is over. During the draft, a watcher
@@ -60,17 +44,8 @@ async function saveLive(req, res) {
   res.status(200).json({ ok: true, picks: picks.filter(Boolean).length });
 }
 
-function ownerName(member) {
-  if (!member) return "";
-  const full = `${member.firstName || ""} ${member.lastName || ""}`.trim();
-  const real = SAME_PERSON[full.toLowerCase()] || full;
-  return SHORT[real] || real.split(" ")[0];
-}
-
 export default async function handler(req, res) {
-  if (!process.env.ESPN_S2 || !process.env.SWID || !process.env.LEAGUE_ID) {
-    return res.status(503).json({ error: "The board is not connected to ESPN yet." });
-  }
+  if (!connected()) return res.status(503).json({ error: "The board is not connected to ESPN yet." });
   if (req.method === "POST") return saveLive(req, res);
   const year = /^20\d\d$/.test(req.query.year || "") ? Number(req.query.year) : SEASON;
   try {
@@ -81,12 +56,7 @@ export default async function handler(req, res) {
     const fresh = watched && Date.now() - watched.at < 45000;
     const playerId = p => p.playerId > 0 ? p.playerId : (watched && watched.picks[p.overallPickNumber - 1]) || 0;
 
-    const members = Object.fromEntries((league.members || []).map(m => [m.id, m]));
-    const teams = Object.fromEntries(league.teams.map(t => [t.id, {
-      id: t.id,
-      owner: ownerName(members[(t.owners || [])[0]]) || t.abbrev,
-      team: (t.name || `${t.location || ""} ${t.nickname || ""}`).replace(/\s+/g, " ").trim(),
-    }]));
+    const teams = teamsOf(league);
     const firstRound = draft.picks.filter(p => p.roundId === 1).sort((a, b) => a.roundPickNumber - b.roundPickNumber).map(p => p.teamId);
     const order = (settings.pickOrder && settings.pickOrder.length ? settings.pickOrder : firstRound).map(id => teams[id]);
 

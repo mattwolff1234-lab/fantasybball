@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Teams · Fantasy Hoops</title>
+<meta name="description" content="Every team's current roster in our fantasy basketball league, synced with ESPN.">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/home.css">
+</head>
+<body>
+<header class="top">
+  <a class="mark" href="/">Fantasy Hoops</a>
+  <nav>
+    <a href="/#history">History</a>
+    <a href="/records.html">Records</a>
+    <a href="/teams.html">Teams</a>
+    <a href="/guide.html">Draft guide</a>
+    <a href="/draft.html">Draft board</a>
+  </nav>
+</header>
+
+<section class="hero small">
+  <p class="eyebrow">2026-27 season</p>
+  <h1>Teams</h1>
+  <p class="lede">Every roster as it stands right now, synced with ESPN.</p>
+</section>
+
+<main>
+  <section>
+    <div class="head"><h2>Rosters</h2><p id="note">Loading from ESPN</p></div>
+    <div class="squads" id="squads"></div>
+  </section>
+</main>
+
+<footer><span>fantasyhoops.fun</span><a href="/">Home</a></footer>
+
+<script src="/guide-data.js"></script>
+<script>
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+// The draft guide's rank and projected points per game, shown beside each player.
+const guide = new Map(window.GUIDE.players.map(p => [p.id, p]));
+const rank = p => guide.has(p.id) ? guide.get(p.id).rank : 999;
+
+fetch("/api/teams").then(async r => {
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error);
+  const started = d.teams.some(t => t.wins + t.losses);
+  d.teams.sort((a, b) => b.wins - a.wins || a.owner.localeCompare(b.owner)).forEach(t => {
+    const card = el("article", "squad"), list = el("ol");
+    card.append(el("h2", null, t.owner), el("p", "sub", started ? `${t.team} · ${t.wins}-${t.losses}` : t.team));
+    t.roster.sort((a, b) => rank(a) - rank(b)).forEach(p => {
+      const li = el("li"), img = el("img"), text = el("div"), small = el("small", null, `${p.pos} · ${p.team}`), g = guide.get(p.id);
+      img.src = `https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/${p.id}.png&w=80&h=58`;
+      img.alt = "";
+      img.loading = "lazy";
+      img.onerror = () => img.style.visibility = "hidden";
+      if (p.injury) small.append(" · ", el("em", null, p.injury));
+      text.append(el("b", null, p.name), small);
+      li.append(img, text, el("span", null, g ? g.ppg.toFixed(1) : "–"));
+      list.append(li);
+    });
+    card.append(list);
+    document.getElementById("squads").append(card);
+  });
+  document.getElementById("note").textContent = "Live from ESPN · the number is the guide's projected fantasy points per game";
+}).catch(e => document.getElementById("note").textContent = e.message || "Could not load the rosters.");
+</script>
+</body>
+</html>

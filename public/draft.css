@@ -85,6 +85,53 @@ a{color:inherit;text-decoration:none}
 .sbar i{display:block;height:100%;background:var(--gold)}
 .grow .pts{font:700 clamp(13px,2vh,22px)/1 var(--mono);font-variant-numeric:tabular-nums}
 
+/* "Play the season": a full-screen show over the board. */
+.gbtn.quiet{border-color:#33343a;color:var(--ink)}
+.season{position:fixed;inset:0;z-index:5;background:var(--bg);visibility:hidden;opacity:0}
+.s-in{position:relative;display:flex;flex-direction:column;gap:2.5vh;height:100%;padding:3vh 3vw;overflow:hidden}
+.s-head{display:flex;align-items:center;gap:3vw}
+.s-month{font:700 clamp(30px,7vh,84px)/1 var(--sans);letter-spacing:-.04em}
+.s-week{margin-top:.8vh;font:400 clamp(11px,1.7vh,18px)/1 var(--mono);color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.s-track{flex:1;height:4px;background:var(--line);border-radius:4px;overflow:hidden}
+.s-track i{display:block;width:0;height:100%;background:var(--gold)}
+.s-buttons{display:flex;gap:10px}
+.s-stage{flex:1;min-height:0;display:grid;grid-template-columns:1fr 26vw;gap:3vw}
+.race{position:relative}
+.rrow{position:absolute;left:0;right:0;display:grid;grid-template-columns:1.6em 7.5vh 8em 1fr 3.6em;align-items:center;gap:1.2vw;font-size:clamp(14px,2.5vh,28px)}
+.rrow img{height:5.6vh;justify-self:center}
+.rrow b.mine,.gside b.mine{color:var(--gold)}
+.rrank{font:400 .7em/1 var(--mono);color:var(--muted)}
+.rrec{font:700 .85em/1 var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+.rbar{height:1.8vh;background:var(--panel);border-radius:1vh;overflow:hidden}
+.rbar i{display:block;width:0;height:100%;background:var(--gold);border-radius:1vh}
+.s-side{display:flex;flex-direction:column;gap:1.4vh;min-height:0;overflow:hidden}
+.s-side h3{margin:0;font:400 clamp(10px,1.4vh,14px)/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.s-card{display:flex;flex-direction:column;align-items:center;gap:.6vh;padding:2vh 2vh 2.4vh;border-radius:16px;background:var(--panel);border:1px solid var(--line);text-align:center}
+.s-card img{width:72%}
+.s-card b{font-size:clamp(15px,2.6vh,28px);letter-spacing:-.02em}
+.s-card span{color:var(--gold);font:700 clamp(11px,1.7vh,18px)/1 var(--mono)}
+.s-ticker p{margin:0;padding-block:1vh;border-top:1px solid var(--line);color:#ff8f8f;font-size:clamp(11px,1.6vh,16px)}
+.bracket{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:3vh 3vw;align-content:center}
+.bracket h2,.bracket .bye,.crown{grid-column:1/-1;margin:0;text-align:center}
+.bracket h2{font:700 clamp(26px,5.5vh,64px)/1 var(--sans);letter-spacing:-.03em}
+.bracket .bye{color:var(--muted);font-size:clamp(12px,1.9vh,20px)}
+.game{padding:1vh 2.4vh;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.gside{display:grid;grid-template-columns:2.4em 1fr auto;align-items:baseline;padding-block:1.4vh;font-size:clamp(16px,3vh,34px);transition:opacity .4s,color .4s}
+.gside+.gside{border-top:1px solid var(--line)}
+.gside small{font:400 .5em/1 var(--mono);color:var(--muted)}
+.gside .pts{font:700 .9em/1 var(--mono);font-variant-numeric:tabular-nums}
+.gside.won{color:var(--gold)}
+.gside.lost{opacity:.35}
+.crown{display:flex;flex-direction:column;align-items:center;gap:1.2vh}
+.crown svg{width:11vh;color:var(--gold)}
+.crown small{font:400 clamp(11px,1.7vh,18px)/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.crown h2{font-size:clamp(48px,13vh,160px);color:var(--gold)}
+.crown p{margin:0;color:var(--muted);font-size:clamp(13px,2.2vh,24px)}
+.faces{display:flex;justify-content:center;gap:1vw;margin-top:1vh}
+.faces img{height:17vh}
+.confetti{position:absolute;top:0;width:10px;height:14px;pointer-events:none}
+@media (max-width:800px){.s-stage{grid-template-columns:1fr}.s-side{display:none}.s-track{display:none}.rrow{grid-template-columns:1.4em 6vh 5.5em 1fr 3.2em}}
+
 .note{margin:auto;color:var(--muted);font-size:16px}
 /* Short screens have no room for the first name above the surname. */
 @media (max-height:820px){.cell .first{display:none}}
