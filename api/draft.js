@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     const draft = league.draftDetail, settings = league.settings.draftSettings;
     // Use the watcher's picks only for this season's draft, and only until ESPN's own list catches up.
     const watched = live && live.year === year && !draft.drafted && Date.now() - live.at < 6 * 3600000 ? live : null;
-    const fresh = watched && Date.now() - watched.at < 20000;
+    const fresh = watched && Date.now() - watched.at < 45000;
     const playerId = p => p.playerId > 0 ? p.playerId : (watched && watched.picks[p.overallPickNumber - 1]) || 0;
 
     const members = Object.fromEntries((league.members || []).map(m => [m.id, m]));

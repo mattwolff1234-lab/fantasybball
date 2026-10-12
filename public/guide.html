@@ -27,6 +27,7 @@
 <div class="controls"><div>
   <input type="text" id="search" inputmode="search" autocomplete="off" placeholder="Search players" aria-label="Search players">
   <span id="positions" class="quick"></span>
+  <span class="quick" id="availWrap" hidden><button class="pick" id="avail" aria-pressed="true">Best available</button></span>
   <select id="sort" aria-label="Sort by">
     <option value="rank">Sort: draft rank</option>
     <option value="ppg">Sort: points per game</option>
@@ -136,10 +137,14 @@ function verdict(p) {
   const diff = p.espn && p.rank <= 200 ? p.espn - p.rank : 0;
   return diff >= 8 ? ["good", `ESPN #${p.espn} · steal`] : diff <= -8 ? ["reach", `ESPN #${p.espn} · reach`] : null;
 }
+// Live draft: who has been taken, read from the draft board every few seconds.
+// "Best available" hides drafted players; switched off, they stay in the list greyed out.
+const taken = new Map(), avail = document.getElementById("avail");
+let onlyAvailable = true;
 function tileHtml(p) {
-  const v = verdict(p);
-  const note = p.injury ? `<em class="inj">${esc(p.injury)}</em>` : v ? `<em class="${v[0]}">${v[1]}</em>` : `<em></em>`;
-  return `<button class="tile" data-id="${p.id}"><span class="t-top"><span>#${p.rank}</span><b>${one(p.ppg)}</b></span>` +
+  const v = verdict(p), gone = taken.get(p.id);
+  const note = gone ? `<em>${esc(gone)}</em>` : p.injury ? `<em class="inj">${esc(p.injury)}</em>` : v ? `<em class="${v[0]}">${v[1]}</em>` : `<em></em>`;
+  return `<button class="tile${gone ? " gone" : ""}" data-id="${p.id}"><span class="t-top"><span>#${p.rank}</span><b>${one(p.ppg)}</b></span>` +
     `${orb(p)}<b>${esc(p.name)}</b><small>${p.pos} · ${p.team}</small>${note}</button>`;
 }
 function detailHtml(p) {
@@ -158,7 +163,8 @@ function detailHtml(p) {
 }
 function render() {
   const q = search.value.trim().toLowerCase();
-  let rows = P.filter(p => (!pos || p.pos === pos) && (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase() === q));
+  const hide = onlyAvailable && taken.size;
+  let rows = P.filter(p => !(hide && taken.has(p.id)) && (!pos || p.pos === pos) && (!q || p.name.toLowerCase().includes(q) || p.team.toLowerCase() === q));
   const by = sort.value;
   if (by !== "rank") rows = rows.slice().sort((a, b) => b[by] - a[by]);
   let html = "", group = "";
@@ -167,7 +173,7 @@ function render() {
     html += tileHtml(p);
   }
   list.innerHTML = html || `<div class="empty">No players match. Try a different name or position.</div>`;
-  document.getElementById("count").textContent = `${rows.length} of ${P.length} players`;
+  document.getElementById("count").textContent = hide ? `${rows.length} available · ${taken.size} drafted` : `${rows.length} of ${P.length} players`;
 }
 function openPlayer(id) {
   sheetBody.innerHTML = detailHtml(P.find(p => p.id === id));
@@ -184,6 +190,28 @@ positions.addEventListener("click", e => {
   positions.querySelectorAll(".pick").forEach(x => x.setAttribute("aria-pressed", x === b));
   render();
 });
+avail.addEventListener("click", () => {
+  onlyAvailable = !onlyAvailable;
+  avail.setAttribute("aria-pressed", onlyAvailable);
+  render();
+});
+async function syncDraft() {
+  let again = true;
+  try {
+    const d = await (await fetch("/api/draft", { cache: "no-store" })).json();
+    const owner = Object.fromEntries((d.order || []).map(t => [t.id, t.owner]));
+    const made = (d.picks || []).filter(p => p.player);
+    if (made.length !== taken.size) {
+      taken.clear();
+      made.forEach(p => taken.set(p.player.id, `${owner[p.teamId]} · ${p.round}.${String(p.slot).padStart(2, "0")}`));
+      document.getElementById("availWrap").hidden = !taken.size;
+      render();
+    }
+    again = !d.drafted;
+  } catch (e) {}
+  if (again) setTimeout(syncDraft, 5000);
+}
+syncDraft();
 document.getElementById("rules").innerHTML = G.rules.map(([name, pts]) => `<span>${name}<b>${pts > 0 ? "+" : ""}${pts}</b></span>`).join("");
 document.getElementById("updated").textContent = `Projections last pulled from ESPN on ${G.updated}.`;
 render();
