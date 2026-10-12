@@ -96,6 +96,12 @@ export default async function handler(req, res) {
       year,
       starts: settings.date || null,
       seconds: settings.timePerSelection || 0,
+      // What the season simulation needs: starting lineup size, regular-season weeks, playoff teams.
+      league: {
+        starters: Object.entries(league.settings.rosterSettings.lineupSlotCounts).reduce((sum, [slot, n]) => sum + (slot < 12 ? n : 0), 0),
+        weeks: league.settings.scheduleSettings.matchupPeriodCount,
+        playoffTeams: league.settings.scheduleSettings.playoffTeamCount,
+      },
       // ESPN can leave "in progress" switched on after a draft that had already opened is pushed back.
       // With no picks made and the start time still ahead, it has not really started.
       inProgress: !!draft.inProgress && !(settings.date > Date.now() && draft.picks.every(p => playerId(p) <= 0)),

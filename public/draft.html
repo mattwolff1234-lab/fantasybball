@@ -42,84 +42,149 @@ const headshot = (id, width) => {
   return img;
 };
 
-// Draft grades compare each pick with the site's draft guide: what a player ranked that high is
-// projected to score, against what the pick's slot normally buys. Only for the current season.
+// Draft grades come from playing the season out. Each team's roster (its picks so far, with the
+// rest of the draft filled in by the guide's rankings) is run through thousands of simulated
+// seasons using the guide's points-per-game and games-played projections and the league's own
+// lineup size, schedule length and playoff format. The grade is how often a team wins the title.
+// Only for the current season, since the guide is this season's.
 const guide = year ? null : window.GUIDE;
 const curve = guide && guide.players.map(p => p.total).sort((a, b) => b - a);
 const rankOf = guide && new Map(guide.players.map(p => [p.id, p.rank]));
-const totalOf = guide && new Map(guide.players.map(p => [p.id, p.total]));
-const place = n => n + (["th", "st", "nd", "rd"][n % 10 > 3 || (n > 10 && n < 14) ? 0 : n % 10]);
+const worth = n => curve[Math.min(n, curve.length) - 1];
 // How far a pick landed from the guide's ranking: +12 means taken 12 spots later than ranked (a steal).
 const gap = p => rankOf && rankOf.has(p.player.id) ? p.n - rankOf.get(p.player.id) : null;
 const verdict = p => { const g = gap(p); return g == null ? "not in the guide" : `guide #${rankOf.get(p.player.id)}` + (g >= 8 ? " · steal" : g <= -8 ? " · reach" : ""); };
-const worth = n => curve[Math.min(n, curve.length) - 1];
-const LETTERS = [[1.3, "A+"], [.9, "A"], [.5, "A-"], [.2, "B+"], [-.1, "B"], [-.4, "B-"], [-.7, "C+"], [-1, "C"], [-1.3, "C-"], [-1.7, "D"], [-Infinity, "F"]];
+// Title odds to a letter. With ten teams an average roster wins about 10% of the time.
+const LETTERS = [[25, "A+"], [19, "A"], [15, "A-"], [12, "B+"], [9.5, "B"], [7.5, "B-"], [5.5, "C+"], [4, "C"], [2.5, "C-"], [1.2, "D"], [-1, "F"]];
+const SIMS = 1000, NOISE = .3, GAMES_PER_DAY = 3.45 / 7;
 const gradeBtn = document.getElementById("gradeBtn"), gradeBox = document.getElementById("grades");
-let chips = {}, projs = {}, letters = {}, announced = null, gradesOpen = false;
+let chips = {}, projs = {}, letters = {}, announced = null, gradesOpen = false, sim = null, asked = null, openWhenReady = false;
+
+// Small repeatable random-number generator, so everyone watching sees the same numbers for the same picks.
+function dice(seed) {
+  return () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+
+// Runs in a background worker (see below), so it only uses what it is handed.
+function simulate(d, players) {
+  const byId = new Map(players.map(p => [p.id, p]));
+  const L = d.league || {}, starters = L.starters || 10, weeks = L.weeks || 19, T = d.order.length;
+  const spots = Math.min(L.playoffTeams || 7, T), rounds = Math.ceil(Math.log2(spots)), total = weeks + rounds;
+  const col = Object.fromEntries(d.order.map((t, i) => [t.id, i]));
+  // Rosters: real picks, then the best players left in guide order for every pick not made yet.
+  const taken = new Set(d.picks.filter(p => p.player).map(p => p.player.id));
+  const left = players.filter(p => !taken.has(p.id)), filler = players[players.length - 1];
+  let next = 0;
+  const rosters = d.order.map(() => []);
+  d.picks.forEach(p => rosters[col[p.teamId]].push(p.player ? byId.get(p.player.id) || filler : left[next++] || filler));
+  // Best players first: on a crowded night the lineup takes the top ones and the rest sit.
+  rosters.forEach(r => r.sort((x, y) => y.ppg - x.ppg));
+  const ppg = rosters.map(r => r.map(p => p.ppg)), plays = rosters.map(r => r.map(p => Math.min(1, p.gp / 82) * GAMES_PER_DAY));
+
+  const rand = dice(20270000 + taken.size), score = rosters.map(() => new Float64Array(total));
+  const wins = new Float64Array(T), playoffs = new Float64Array(T), titles = new Float64Array(T), points = new Float64Array(T);
+  const order = d.order.map((_, i) => i), w = new Float64Array(T), pf = new Float64Array(T);
+  const spot = (j, k) => j === 0 ? order[0] : order[1 + (j - 1 + k) % (T - 1)];
+  for (let n = 0; n < SIMS; n++) {
+    // Every team's score for every week: each day, each player either plays or not, and scores around his average.
+    for (let t = 0; t < T; t++) {
+      const pp = ppg[t], pl = plays[t], size = pp.length, sc = score[t];
+      for (let k = 0; k < total; k++) {
+        let sum = 0;
+        for (let day = 0; day < 7; day++) {
+          let used = 0;
+          for (let i = 0; i < size && used < starters; i++) {
+            if (rand() < pl[i]) { used++; sum += pp[i] * (1 + NOISE * 2 * (rand() + rand() + rand() - 1.5)); }
+          }
+        }
+        sc[k] = sum;
+      }
+    }
+    // Regular season: a shuffled round-robin, one matchup a week.
+    for (let i = T - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)), x = order[i]; order[i] = order[j]; order[j] = x; }
+    w.fill(0); pf.fill(0);
+    for (let k = 0; k < weeks; k++) {
+      for (let i = 0; i < T >> 1; i++) {
+        const x = spot(i, k), y = spot(T - 1 - i, k);
+        if (score[x][k] >= score[y][k]) w[x]++; else w[y]++;
+        pf[x] += score[x][k]; pf[y] += score[y][k];
+      }
+    }
+    for (let t = 0; t < T; t++) { wins[t] += w[t]; points[t] += pf[t] / weeks; }
+    // Playoffs: best records get in, top seed gets the bye when the field is odd, one week a round.
+    let alive = d.order.map((_, i) => i).sort((x, y) => w[y] - w[x] || pf[y] - pf[x]).slice(0, spots);
+    alive.forEach(t => playoffs[t]++);
+    const seed = Object.fromEntries(alive.map((t, i) => [t, i]));
+    for (let r = 0; alive.length > 1; r++) {
+      const k = weeks + r, through = alive.length % 2 ? [alive[0]] : [], rest = alive.length % 2 ? alive.slice(1) : alive;
+      for (let i = 0; i < rest.length >> 1; i++) { const x = rest[i], y = rest[rest.length - 1 - i]; through.push(score[x][k] >= score[y][k] ? x : y); }
+      alive = through.sort((x, y) => seed[x] - seed[y]);
+    }
+    titles[alive[0]]++;
+  }
+  return { weeks, results: Object.fromEntries(d.order.map((t, i) => [t.id, { wins: wins[i] / SIMS, playoffs: 100 * playoffs[i] / SIMS, title: 100 * titles[i] / SIMS, points: points[i] / SIMS }])) };
+}
+
+// The simulation takes a moment, so it runs off to the side and the board never freezes waiting for it.
+const simWorker = guide && new Worker(URL.createObjectURL(new Blob([
+  `const SIMS=${SIMS},NOISE=${NOISE},GAMES_PER_DAY=${GAMES_PER_DAY};${dice};${simulate};onmessage=e=>postMessage({key:e.data.key,...simulate(e.data.d,e.data.players)})`])));
+const picksKey = d => d.picks.map(p => p.player ? p.player.id : 0).join();
+if (simWorker) simWorker.onmessage = e => {
+  sim = e.data;
+  if (!last || picksKey(last) !== sim.key) return;
+  showGrades(last);
+  if (openWhenReady) { openWhenReady = false; toggleGrades(true); }
+};
 
 function grade(d) {
-  const teams = d.order.map(t => {
-    const picks = d.picks.filter(p => p.teamId === t.id && p.player).map(p => {
-      const rank = rankOf.get(p.player.id) || curve.length;
-      return { ...p, rank, value: worth(rank) - worth(p.n) };
-    });
-    const total = picks.reduce((sum, p) => sum + p.value, 0);
-    return { ...t, picks, total, each: total / (picks.length || 1) };
-  }).filter(t => t.picks.length >= 3);
-  // Graded on a curve against the rest of the league, per pick so uneven pick counts mid-round are fair.
-  const mean = teams.reduce((s, t) => s + t.each, 0) / teams.length;
-  const spread = Math.sqrt(teams.reduce((s, t) => s + (t.each - mean) ** 2, 0) / teams.length);
-  if (teams.length < 2 || !spread) return [];
-  teams.forEach(t => {
-    t.letter = LETTERS.find(([floor]) => (t.each - mean) / spread >= floor)[1];
-    t.steal = t.picks.reduce((a, b) => b.value > a.value ? b : a);
-    t.reach = t.picks.reduce((a, b) => b.value < a.value ? b : a);
-  });
-  return teams.sort((a, b) => b.each - a.each);
+  return d.order.map(t => {
+    const r = sim.results[t.id];
+    const picks = d.picks.filter(p => p.teamId === t.id && p.player).map(p => { const rank = rankOf.get(p.player.id) || curve.length; return { ...p, rank, value: worth(rank) - worth(p.n) }; });
+    return { ...t, ...r, picks, letter: LETTERS.find(([floor]) => r.title >= floor)[1],
+      steal: picks.length ? picks.reduce((x, y) => y.value > x.value ? y : x) : null,
+      reach: picks.length ? picks.reduce((x, y) => y.value < x.value ? y : x) : null };
+  }).sort((x, y) => y.title - x.title);
 }
 
 function showGrades(d) {
+  // One simulation per new pick. Until its result comes back, the grades already showing stay up.
+  const key = picksKey(d);
+  if (!sim || sim.key !== key) {
+    if (asked !== key) {
+      asked = key;
+      simWorker.postMessage({ key, d: { order: d.order, picks: d.picks, league: d.league }, players: guide.players.map(p => ({ id: p.id, ppg: p.ppg, gp: p.gp })) });
+    }
+    return;
+  }
+  const count = d.picks.filter(p => p.player).length, pct = n => n >= 99.5 ? ">99%" : n < .5 ? "<1%" : Math.round(n) + "%";
   const teams = grade(d);
-  Object.values(chips).forEach(c => c.textContent = "");
   teams.forEach(t => {
-    chips[t.id].textContent = t.letter;
+    chips[t.id].textContent = count ? t.letter : "";
+    projs[t.id].textContent = count ? `${t.wins.toFixed(1)}-${(sim.weeks - t.wins).toFixed(1)} · title ${pct(t.title)}` : "";
     // When a pick moves a team's grade, pop the letter and say so in the pick announcement.
     const before = letters[t.id];
-    if (before && before !== t.letter) {
+    if (count && before && before !== t.letter) {
       gsap.fromTo(chips[t.id], { scale: 2.2, color: "#fff" }, { scale: 1, color: "", duration: still ? 0 : 1.2, ease: "elastic.out(1,.5)", clearProps: "all" });
-      if (announced && announced.teamId === t.id && Date.now() - announced.at < 3000) announced.line.textContent += ` · grade ${before} → ${t.letter}`;
+      if (announced && announced.teamId === t.id && Date.now() - announced.at < 6000) announced.line.textContent += ` · grade ${before} → ${t.letter}`;
     }
     letters[t.id] = t.letter;
   });
-  // Projected standings: the guide's projected season points for everyone a team has drafted so far.
-  const standings = d.order.map(t => ({ ...t, points: d.picks.filter(p => p.teamId === t.id && p.player).reduce((sum, p) => sum + (totalOf.get(p.player.id) || 0), 0) })).sort((x, y) => y.points - x.points);
-  const any = standings[0].points > 0;
-  standings.forEach((t, i) => projs[t.id].textContent = any ? `Proj ${place(i + 1)} · ${t.points.toLocaleString("en-US")}` : "");
-  gradeBtn.hidden = !any;
+  gradeBtn.hidden = !count;
 
   const pick = p => `${p.player.name} at ${p.round}.${String(p.slot).padStart(2, "0")}` + (rankOf.has(p.player.id) ? ` (ranked ${p.rank})` : " (not in the guide)");
-  const box = el("div", "grades-in"), left = el("div"), right = el("div"), head = el("div", "line"), head2 = el("div", "line");
-  head.append(el("b", null, d.drafted ? "Draft grades" : "Draft grades so far"), el("small", null, "Value against the draft guide"));
-  left.append(head);
-  if (!teams.length) left.append(el("p", "wait", "Grades appear once every team has three picks."));
+  const box = el("div", "grades-in"), head = el("div", "line"), cols = el("div", "grow ghead");
+  head.append(el("b", null, d.drafted ? "Draft grades" : "Draft grades so far"),
+    el("small", null, `${SIMS.toLocaleString("en-US")} simulated seasons` + (d.drafted ? "" : " · rest of the draft filled in from the guide") + " · click to close"));
+  cols.append(el("span"), el("span"), el("span", null, "Record"), el("span", null, "Playoffs"), el("span", null, "Title"));
+  box.append(head, cols);
   teams.forEach(t => {
     const row = el("div", t.owner === me ? "grow mine" : "grow"), text = el("div");
-    text.append(el("b", null, t.owner), el("p", null, "Best value: " + pick(t.steal)));
-    if (t.reach.value < 0) text.append(el("p", null, "Biggest reach: " + pick(t.reach)));
-    row.append(el("span", "letter", t.letter), text, el("span", "pts", (t.total >= 0 ? "+" : "−") + Math.abs(Math.round(t.total)).toLocaleString("en-US")));
-    left.append(row);
+    text.append(el("b", null, t.owner));
+    if (t.steal) text.append(el("p", null, "Best value: " + pick(t.steal)));
+    if (t.reach && t.reach.value < 0 && t.reach !== t.steal) text.append(el("p", null, "Biggest reach: " + pick(t.reach)));
+    row.append(el("span", "letter", t.letter), text, el("span", "pts", `${t.wins.toFixed(1)}-${(sim.weeks - t.wins).toFixed(1)}`), el("span", "pts", pct(t.playoffs)), el("span", "pts gold", pct(t.title)));
+    box.append(row);
   });
-  head2.append(el("b", null, "Projected standings"), el("small", null, "Projected season points · click to close"));
-  right.append(head2);
-  standings.forEach((t, i) => {
-    const row = el("div", t.owner === me ? "grow mine" : "grow"), text = el("div"), bar = el("span", "sbar"), fill = el("i");
-    fill.style.width = 100 * t.points / (standings[0].points || 1) + "%";
-    bar.append(fill);
-    text.append(el("b", null, t.owner), bar);
-    row.append(el("span", "letter rank", i + 1), text, el("span", "pts", t.points.toLocaleString("en-US")));
-    right.append(row);
-  });
-  box.append(left, right);
   gradeBox.replaceChildren(box);
 }
 
@@ -258,9 +323,10 @@ function render(d) {
   if (d.clockLeft != null) clockFrom = Date.now() - (d.seconds * 1000 - d.clockLeft);
   if (!d.inProgress) clockFrom = null;
   if (curve) {
-    showGrades(d);
     // Put the final grades up by themselves the moment the draft finishes.
-    if (last && d.drafted && !last.drafted) toggleGrades(true);
+    if (last && d.drafted && !last.drafted) openWhenReady = true;
+    showGrades(d);
+    if (openWhenReady && sim && sim.key === picksKey(d)) { openWhenReady = false; toggleGrades(true); }
   }
   try { clockFrom ? localStorage.setItem("draftClock", JSON.stringify({ year: d.year, count, at: clockFrom })) : localStorage.removeItem("draftClock"); } catch (e) {}
   made = count;
