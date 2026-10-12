@@ -67,8 +67,8 @@ a{color:inherit;text-decoration:none}
 .toast span{font:700 clamp(12px,1.9vh,22px)/1 var(--mono);letter-spacing:.06em}
 
 /* Draft grades: every team ranked, over the top of the board. */
-.grades{position:fixed;inset:0;display:grid;place-items:center;padding:3vh 16px;background:rgba(0,0,0,.72);visibility:hidden;opacity:0;cursor:pointer;overflow:auto}
-.grades-in{width:min(1100px,100%);padding:2.4vh 3vh;border-radius:20px;background:var(--panel);border:1px solid var(--line)}
+.grades{position:fixed;inset:0;display:block;padding:3vh 16px;background:rgba(0,0,0,.72);visibility:hidden;opacity:0;cursor:pointer;overflow-y:auto;overscroll-behavior:contain}
+.grades-in{width:min(1100px,100%);margin:0 auto;padding:2.4vh 3vh;border-radius:20px;background:var(--panel);border:1px solid var(--line)}
 .grades .line{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding-bottom:1.4vh;font-size:clamp(18px,3vh,32px)}
 .grades small{font:400 clamp(10px,1.3vh,14px)/1 var(--mono);color:var(--muted);letter-spacing:.04em}
 .grow{display:grid;grid-template-columns:3.2em 1fr 6em 5em 4em;align-items:center;gap:2vh;padding-block:.9vh;border-top:1px solid var(--line)}
