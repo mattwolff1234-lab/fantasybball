@@ -217,6 +217,8 @@ function render(d) {
     // The draft just started, or was resumed after a pause.
     clockFrom = Date.now();
   }
+  // When the watcher inside ESPN's draft room is reporting, use ESPN's real clock instead of our estimate.
+  if (d.clockLeft != null) clockFrom = Date.now() - (d.seconds * 1000 - d.clockLeft);
   if (!d.inProgress) clockFrom = null;
   if (curve) {
     showGrades(d);

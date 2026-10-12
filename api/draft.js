@@ -1,6 +1,9 @@
 // Live draft board: reads the draft from ESPN using the league's login, which is kept in
 // Vercel's settings (ESPN_S2, SWID, LEAGUE_ID) and never in the repo. The browser only gets
 // first names, team names and picks.
+import { list, put } from "@vercel/blob";
+import { createHash } from "node:crypto";
+
 const SEASON = 2027; // ESPN names a season by the year it ends in
 const POS = { 1: "PG", 2: "SG", 3: "SF", 4: "PF", 5: "C" };
 const NBA = ["", "ATL", "BOS", "NOP", "CHI", "CLE", "DAL", "DEN", "DET", "GSW", "HOU", "IND", "LAC", "LAL", "MIA", "MIL", "MIN", "BKN", "NYK", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "OKC", "UTA", "WAS", "TOR", "MEM", "CHA"];
@@ -30,6 +33,33 @@ async function espn(year, views) {
   return r.json();
 }
 
+// ESPN's data feed does not show picks until the draft is over. During the draft, a watcher
+// running inside ESPN's own draft room sends the picks and the real pick clock here, and the
+// board lays them over ESPN's empty list. The watcher proves itself with a key; only the
+// key's SHA-256 is kept in the repo.
+const WATCH_HASH = "00a2e6570b8b9459df95c1e58098af2ef12ee799438ca04157ccf08fc901ada7";
+const LIVE = "draft/live.json";
+
+async function readLive() {
+  const { blobs } = await list({ prefix: LIVE, limit: 1 });
+  if (!blobs[0]) return null;
+  const r = await fetch(blobs[0].url + "?v=" + new Date(blobs[0].uploadedAt).getTime(), { cache: "no-store" });
+  return r.ok ? r.json() : null;
+}
+
+async function saveLive(req, res) {
+  let body = req.body;
+  if (typeof body === "string") try { body = JSON.parse(body); } catch (e) { body = {}; }
+  body = body || {};
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  if (createHash("sha256").update(String(body.key || "")).digest("hex") !== WATCH_HASH) return res.status(403).json({ error: "Wrong key." });
+  const picks = (Array.isArray(body.picks) ? body.picks : []).slice(0, 400).map(id => Number(id) || 0);
+  await put(LIVE, JSON.stringify({ year: SEASON, picks, ends: Date.now() + (Number(body.timeLeft) || 0), at: Date.now() }), {
+    access: "public", addRandomSuffix: false, allowOverwrite: true, contentType: "application/json", cacheControlMaxAge: 60,
+  });
+  res.status(200).json({ ok: true, picks: picks.filter(Boolean).length });
+}
+
 function ownerName(member) {
   if (!member) return "";
   const full = `${member.firstName || ""} ${member.lastName || ""}`.trim();
@@ -41,10 +71,15 @@ export default async function handler(req, res) {
   if (!process.env.ESPN_S2 || !process.env.SWID || !process.env.LEAGUE_ID) {
     return res.status(503).json({ error: "The board is not connected to ESPN yet." });
   }
+  if (req.method === "POST") return saveLive(req, res);
   const year = /^20\d\d$/.test(req.query.year || "") ? Number(req.query.year) : SEASON;
   try {
-    const [league, known] = await Promise.all([espn(year, ["mDraftDetail", "mTeam", "mSettings"]), players(year)]);
+    const [league, known, live] = await Promise.all([espn(year, ["mDraftDetail", "mTeam", "mSettings"]), players(year), year === SEASON ? readLive().catch(() => null) : null]);
     const draft = league.draftDetail, settings = league.settings.draftSettings;
+    // Use the watcher's picks only for this season's draft, and only until ESPN's own list catches up.
+    const watched = live && live.year === year && !draft.drafted && Date.now() - live.at < 6 * 3600000 ? live : null;
+    const fresh = watched && Date.now() - watched.at < 20000;
+    const playerId = p => p.playerId > 0 ? p.playerId : (watched && watched.picks[p.overallPickNumber - 1]) || 0;
 
     const members = Object.fromEntries((league.members || []).map(m => [m.id, m]));
     const teams = Object.fromEntries(league.teams.map(t => [t.id, {
@@ -61,12 +96,17 @@ export default async function handler(req, res) {
       year,
       starts: settings.date || null,
       seconds: settings.timePerSelection || 0,
-      inProgress: !!draft.inProgress,
+      // ESPN can leave "in progress" switched on after a draft that had already opened is pushed back.
+      // With no picks made and the start time still ahead, it has not really started.
+      inProgress: !!draft.inProgress && !(settings.date > Date.now() && draft.picks.every(p => playerId(p) <= 0)),
+      // Milliseconds left on ESPN's real pick clock, when the watcher has reported in the last few seconds.
+      clockLeft: fresh ? Math.max(0, watched.ends - Date.now()) : null,
+      watching: !!fresh,
       drafted: !!draft.drafted,
       order,
       picks: draft.picks.map(p => ({
         n: p.overallPickNumber, round: p.roundId, slot: p.roundPickNumber, teamId: p.teamId,
-        player: p.playerId > 0 ? known.get(p.playerId) || { id: p.playerId, name: "Player " + p.playerId, pos: "", team: "" } : null,
+        player: playerId(p) > 0 ? known.get(playerId(p)) || { id: playerId(p), name: "Player " + playerId(p), pos: "", team: "" } : null,
       })),
     });
   } catch (e) {
