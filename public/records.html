@@ -79,7 +79,7 @@ const num = n => n.toLocaleString("en-US", { maximumFractionDigits: 1 });
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const week = r => `${r.season} · ${r.playoff ? "playoffs" : "week " + r.week}`;
 
-const games = (id, rows, showOwnerFirst) => rows.forEach(g => {
+const games = (id, rows, showOwnerFirst) => document.getElementById(id).replaceChildren() || rows.forEach(g => {
   const li = el("li"), img = el("img"), text = el("div");
   img.src = `https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/${g.id}.png&w=128&h=93`;
   img.alt = "";
@@ -89,9 +89,6 @@ const games = (id, rows, showOwnerFirst) => rows.forEach(g => {
   li.append(img, text, el("span", "gap", num(g.points)));
   document.getElementById(id).append(li);
 });
-games("games", R.games);
-games("bench", R.bench);
-games("owners", R.owners, true);
 
 // Draft picks reuse the single-game rows: headshot, player, then who took him and what he did.
 const picks = (id, rows, cls) => document.getElementById(id).replaceChildren() || rows.forEach(p => {
@@ -115,23 +112,50 @@ healthy.addEventListener("click", () => {
 });
 picks("bestPicks", R.best_picks, "good");
 
-const list = (id, rows, title, value, detail, cls) => rows.forEach(r => {
+const list = (id, rows, title, value, detail, cls) => document.getElementById(id).replaceChildren() || rows.forEach(r => {
   const li = el("li"), line = el("div", "line");
   line.append(el("b", null, title(r)), el("span", "gap " + (cls || ""), value(r)));
   li.append(line, el("p", null, detail(r)));
   document.getElementById(id).append(li);
 });
-list("high", R.high, r => r.owner, r => num(r.points), r => `${week(r)} · against ${r.against}`, "good");
-list("low", R.low, r => r.owner, r => num(r.points), r => `${week(r)} · against ${r.against}`, "bad");
 const versus = r => { const b = el("b"); b.append(r.winner, el("span", "over", " over "), r.loser); return b; };
-const margins = (id, rows) => rows.forEach(r => {
+const margins = (id, rows) => document.getElementById(id).replaceChildren() || rows.forEach(r => {
   const li = el("li"), line = el("div", "line");
   line.append(versus(r), el("span", "gap", "+" + num(r.margin)));
   li.append(line, el("p", null, `${week(r)} · ${num(r.winner_points)} to ${num(r.loser_points)}`));
   document.getElementById(id).append(li);
 });
-margins("blowouts", R.blowouts);
-margins("closest", R.closest);
+
+// Everything that this season can change. Drawn once from past seasons, then again once
+// this season's games arrive from ESPN.
+const render = D => {
+  games("games", D.games);
+  games("bench", D.bench);
+  games("owners", D.owners, true);
+  list("high", D.high, r => r.owner, r => num(r.points), r => `${week(r)} · against ${r.against}`, "good");
+  list("low", D.low, r => r.owner, r => num(r.points), r => `${week(r)} · against ${r.against}`, "bad");
+  margins("blowouts", D.blowouts);
+  margins("closest", D.closest);
+};
+render(R);
+
+// Each list keeps its length; this season's rows only get in by beating an old one.
+const top = (old, live, order) => [...old, ...(live || [])].sort(order).slice(0, old.length);
+const most = key => (a, b) => b[key] - a[key], least = key => (a, b) => a[key] - b[key];
+const bestPerOwner = (old, live) => {
+  const best = {};
+  [...old, ...(live || [])].forEach(g => { if (!best[g.owner] || g.points > best[g.owner].points) best[g.owner] = g; });
+  return Object.values(best).sort(most("points"));
+};
+fetch("/api/records").then(r => r.ok ? r.json() : null).then(L => L && render({
+  games: top(R.games, L.games, most("points")),
+  bench: top(R.bench, L.bench, most("points")),
+  owners: bestPerOwner(R.owners, L.owners),
+  high: top(R.high, L.high, most("points")),
+  low: top(R.low, L.low, least("points")),
+  blowouts: top(R.blowouts, L.blowouts, most("margin")),
+  closest: top(R.closest, L.closest, least("margin")),
+})).catch(() => {});
 </script>
 </body>
 </html>
