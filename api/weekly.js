@@ -117,7 +117,8 @@ export default async function handler(req, res) {
       pastMeetings((league.status?.previousSeasons || []).filter(y => y >= 2019 && y < SEASON)).catch(() => []),
       playerNames().catch(() => ({})),
     ]);
-    const thisSeason = schedule.filter(real).map(m => ({ season: seasonLabel(SEASON), week: m.matchupPeriodId, playoff: m.playoffTierType === "WINNERS_BRACKET", a: names[m.home.teamId]?.owner, b: names[m.away.teamId]?.owner, ap: m.home.totalPoints, bp: m.away.totalPoints, winner: m.winner === "HOME" ? names[m.home.teamId]?.owner : m.winner === "AWAY" ? names[m.away.teamId]?.owner : null }));
+    // Only meetings up to the week being shown, so an old week reads as it did at the time.
+    const thisSeason = schedule.filter(m => real(m) && m.matchupPeriodId <= week).map(m => ({ season: seasonLabel(SEASON), week: m.matchupPeriodId, playoff: m.playoffTierType === "WINNERS_BRACKET", a: names[m.home.teamId]?.owner, b: names[m.away.teamId]?.owner, ap: m.home.totalPoints, bp: m.away.totalPoints, winner: m.winner === "HOME" ? names[m.home.teamId]?.owner : m.winner === "AWAY" ? names[m.away.teamId]?.owner : null }));
     const meetings = [...past, ...thisSeason];
 
     // Draft slot of every player, for "bust of the week".
