@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Weekly Recap · Fantasy Hoops</title>
+<meta name="description" content="Every week in our fantasy basketball league: scores, awards, power rankings and a deep dive on every team.">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/home.css">
+</head>
+<body>
+<header class="top">
+  <a class="mark" href="/">Fantasy Hoops</a>
+  <nav>
+    <a href="/recap.html">Weekly</a>
+    <a href="/#history">History</a>
+    <a href="/records.html">Records</a>
+    <a href="/teams.html">Teams</a>
+    <a href="/guide.html">Draft guide</a>
+    <a href="/draft.html">Draft board</a>
+  </nav>
+</header>
+
+<section class="hero small">
+  <p class="eyebrow" id="eyebrow">Weekly recap</p>
+  <h1 id="title">Loading the week</h1>
+  <p class="lede wide-lede" id="intro">Reading every box score from ESPN.</p>
+  <div class="weeks" id="weeks" role="tablist" aria-label="Pick a week"></div>
+</section>
+
+<main id="main" hidden>
+  <section>
+    <div class="head"><h2>Scoreboard</h2><p id="scoreNote"></p></div>
+    <ol class="board" id="board"></ol>
+  </section>
+
+  <section>
+    <div class="head"><h2>Awards</h2><p>The best, the worst and the unlucky</p></div>
+    <div class="awards" id="awards"></div>
+  </section>
+
+  <section>
+    <div class="head"><h2>Power rankings</h2><p>All-play record is what you would be if you played every team every week</p></div>
+    <div class="scroll"><table id="power"></table></div>
+  </section>
+
+  <section>
+    <div class="head"><h2>Team by team</h2><p>In power ranking order</p></div>
+    <div class="dives" id="dives"></div>
+  </section>
+
+  <section id="nextWrap">
+    <div class="head"><h2 id="nextTitle">Next week</h2><p>With the all-time head-to-head record since 2018-19</p></div>
+    <p class="words" id="previewWords" hidden></p>
+    <ol class="board" id="next"></ol>
+  </section>
+</main>
+
+<footer><span>fantasyhoops.fun</span><a href="/">Home</a></footer>
+
+<script>
+const num = n => Number(n).toLocaleString("en-US", { maximumFractionDigits: 1 });
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const shot = (id, w = 128, h = 93) => {
+  const img = el("img");
+  img.src = `https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/${id}.png&w=${w}&h=${h}`;
+  img.alt = ""; img.loading = "lazy";
+  img.onerror = () => img.style.visibility = "hidden";
+  return img;
+};
+const place = n => n + (["th", "st", "nd", "rd"][n % 10 > 3 || (n > 10 && n < 14) ? 0 : n % 10]);
+const rec = r => r[2] ? `${r[0]}-${r[1]}-${r[2]}` : `${r[0]}-${r[1]}`;
+
+// "Karan leads 9-5" for an all-time head-to-head record.
+const series = (h, a, b) => {
+  if (!h || !h.games) return "First meeting";
+  const x = h[a] || 0, y = h[b] || 0;
+  const lead = x === y ? `Tied ${x}-${y}` : x > y ? `${a} leads ${x}-${y}` : `${b} leads ${y}-${x}`;
+  return `All-time: ${lead}` + (h.playoffs ? ` · ${h.playoffs} in the playoffs` : "");
+};
+
+// Facts that read well on their own, used when nobody has written up a team.
+function blurb(t, d) {
+  const out = [];
+  if (t.result) out.push(t.result === "W" ? `Beat ${t.opponent} by ${num(t.margin)}.` : t.result === "L" ? `Lost to ${t.opponent} by ${num(-t.margin)}.` : `Tied ${t.opponent}.`);
+  else if (t.opponent) out.push(t.margin >= 0 ? `Up ${num(t.margin)} on ${t.opponent} so far.` : `Down ${num(-t.margin)} to ${t.opponent} so far.`);
+  if (t.top[0]) out.push(`${t.top[0].name} led the way with ${num(t.top[0].points)} in ${t.top[0].games} games.`);
+  if (t.rank === 1) out.push("Best score in the league.");
+  else if (t.rank === d.teams.length) out.push("Worst score in the league.");
+  if (t.left > 150) out.push(`Left ${num(t.left)} on the bench.`);
+  if (t.luck >= 1) out.push(`${num(t.luck)} more wins than the scoring deserves so far.`);
+  if (t.luck <= -1) out.push(`${num(-t.luck)} fewer wins than the scoring deserves so far.`);
+  return out.join(" ");
+}
+
+const stat = (label, value, cls) => { const s = el("div", "stat"); s.append(el("span", null, label), el("b", cls, value)); return s; };
+
+function render(d, w) {
+  const live = !d.final;
+  document.title = `Week ${d.week} · Fantasy Hoops`;
+  document.getElementById("eyebrow").textContent = `${d.season} · ${d.playoff ? "Playoffs, week " + d.week : "Week " + d.week}${live ? " · live" : ""}${d.dates.length ? " · " + d.dates.map(x => x.replace(/, \d{4}$/, "")).join(" to ") : ""}`;
+  const top = [...d.teams].sort((a, b) => b.points - a.points)[0];
+  document.getElementById("title").textContent = w?.title || (live ? `Week ${d.week} so far` : `Week ${d.week}: ${top.owner} on top`);
+  document.getElementById("intro").textContent = w?.intro || (live ? "Live scores, updated through last night's games." : `${top.owner} put up ${num(top.points)}, the best score of the week.`);
+
+  // Scoreboard
+  const board = document.getElementById("board");
+  board.replaceChildren();
+  d.matchups.forEach(m => {
+    const li = el("li", "match");
+    [m.home, m.away].forEach((s, i) => {
+      const side = el("div", "side-score");
+      const won = m.winner && (m.winner === "HOME") === (i === 0);
+      if (won) side.classList.add("won");
+      side.append(el("b", null, s.owner), el("span", "score", num(s.points)));
+      li.append(side);
+    });
+    li.append(el("p", null, (m.winner ? `Won by ${num(m.margin)}` : `${num(m.margin)} apart`) + " · " + series(m.h2h, m.home.owner, m.away.owner)));
+    board.append(li);
+  });
+  document.getElementById("scoreNote").textContent = live ? "In progress" : "Final";
+
+  // Awards
+  const awards = document.getElementById("awards");
+  awards.replaceChildren();
+  d.awards.forEach(a => {
+    const card = el("article", "award aw-" + a.key), text = el("div");
+    text.append(el("h3", null, a.title), el("b", null, a.owner), el("span", "value", typeof a.value === "number" ? num(a.value) : a.value), el("p", null, a.detail));
+    card.append(text);
+    if (a.id) card.append(shot(a.id));
+    awards.append(card);
+  });
+
+  // Power rankings
+  const table = document.getElementById("power");
+  table.replaceChildren();
+  const thead = el("thead"), tbody = el("tbody"), hr = el("tr");
+  [["#"], ["Owner", "left"], ["Record"], ["All-play", "wide"], ["Points"], ["Luck", "wide"], ["Streak", "wide"], ["Power"]].forEach(([t, c]) => hr.append(el("th", c, t)));
+  thead.append(hr);
+  d.teams.forEach(t => {
+    const tr = el("tr"), move = el("td", "move");
+    move.append(String(t.powerRank));
+    if (t.powerMove) move.append(el("small", t.powerMove > 0 ? "up" : "down", (t.powerMove > 0 ? " ▲" : " ▼") + Math.abs(t.powerMove)));
+    tr.append(move, el("td", "name left", t.owner), el("td", null, rec(t.record)), el("td", "wide", rec(t.seasonAllPlay)), el("td", null, num(t.pf)),
+      el("td", "wide " + (t.luck >= 0.5 ? "good" : t.luck <= -0.5 ? "bad" : "dim"), (t.luck > 0 ? "+" : "") + num(t.luck)), el("td", "wide", t.streak || "–"), el("td", "gold", num(t.power)));
+    tbody.append(tr);
+  });
+  table.append(thead, tbody);
+
+  // Team by team
+  const dives = document.getElementById("dives");
+  dives.replaceChildren();
+  d.teams.forEach(t => {
+    const card = el("article", "dive"), head = el("div", "dive-head"), who = el("div");
+    who.append(el("span", "season", `#${t.powerRank} · ${rec(t.record)}${t.streak ? " · " + t.streak : ""}`), el("h2", null, t.owner), el("p", "sub", t.team));
+    const res = el("div", "result " + (t.result === "W" ? "good" : t.result === "L" ? "bad" : ""));
+    res.append(el("b", null, (t.result || (t.margin >= 0 ? "Up" : "Down")) + " " + num(t.points)), el("span", null, `vs ${t.opponent} ${num(t.oppPoints)}`));
+    head.append(who, res);
+    card.append(head);
+
+    const words = w?.teams?.[t.owner];
+    card.append(el("p", "words" + (words ? "" : " auto"), words || blurb(t, d)));
+
+    const stats = el("div", "stats");
+    stats.append(stat("Week rank", place(t.rank)), stat("All-play", `${t.allPlay[0]}-${t.allPlay[1]}`), stat("Lineup score", t.efficiency + "%", t.efficiency >= 90 ? "good" : t.efficiency < 80 ? "bad" : ""),
+      stat("Left on bench", num(t.left), t.left > 200 ? "bad" : ""), stat("Starter games", t.games), stat("Best day", t.bestDay ? num(t.bestDay.points) : "–"));
+    card.append(stats);
+
+    const cols = el("div", "dive-cols"), left = el("div"), right = el("div");
+    left.append(el("h3", null, "Carried by"));
+    const list = el("ol", "mini");
+    t.top.forEach(p => { const li = el("li"), x = el("div"); x.append(el("b", null, p.name), el("small", null, `${p.games} games · ${num(p.points / p.games)} a game`)); li.append(shot(p.id, 80, 58), x, el("span", null, num(p.points))); list.append(li); });
+    left.append(list);
+    const notes = el("ul", "notes");
+    if (t.dud) notes.append(el("li", null, `Cold: ${t.dud.name}, ${num(t.dud.points / t.dud.games)} a game over ${t.dud.games} starts`));
+    if (t.benchBest && t.benchBest.points > 0) notes.append(el("li", null, `Wasted on the bench: ${t.benchBest.name}, ${num(t.benchBest.points)}`));
+    if (t.bestDay) notes.append(el("li", null, `Best day: ${num(t.bestDay.points)} on ${t.bestDay.date}`));
+    const pts = m => m.points ? ` (${num(m.points)})` : "";
+    const adds = t.moves.filter(m => m.kind === "add" || m.kind === "trade"), streams = t.moves.filter(m => m.kind === "streamed"), drops = t.moves.filter(m => m.kind === "drop" || m.kind === "traded");
+    if (adds.length) notes.append(el("li", null, `In: ${adds.map(m => m.name + (m.kind === "trade" ? " by trade" : "") + pts(m)).join(", ")}`));
+    if (streams.length) notes.append(el("li", null, `Streamed: ${streams.map(m => m.name + pts(m)).join(", ")}`));
+    if (drops.length) notes.append(el("li", null, `Out: ${drops.map(m => m.name + (m.kind === "traded" ? " by trade" : "")).join(", ")}`));
+    if (t.next) notes.append(el("li", null, `Next: ${t.next.opponent} · ${series(t.next.h2h, t.owner, t.next.opponent).replace("All-time: ", "")}`));
+    right.append(el("h3", null, "Notes"), notes);
+    cols.append(left, right);
+    card.append(cols);
+    dives.append(card);
+  });
+
+  // Next week
+  const next = document.getElementById("next");
+  next.replaceChildren();
+  document.getElementById("nextWrap").hidden = !d.next.length;
+  document.getElementById("nextTitle").textContent = `Week ${d.week + 1} preview`;
+  d.next.forEach(m => {
+    const li = el("li", "match");
+    [m.home, m.away].forEach(s => { const side = el("div", "side-score"); side.append(el("b", null, s.owner), el("span", "score dim-score", s.record ? s.record.join("-") : "")); li.append(side); });
+    li.append(el("p", null, series(m.h2h, m.home.owner, m.away.owner) + (m.h2h.last ? ` · last met ${m.h2h.last.season}, ${m.h2h.last.winner} won` : "")));
+    next.append(li);
+  });
+  const pw = document.getElementById("previewWords");
+  pw.textContent = w?.preview || "";
+  pw.hidden = !w?.preview;
+
+  document.getElementById("main").hidden = false;
+}
+
+function weekButtons(d) {
+  const box = document.getElementById("weeks");
+  box.replaceChildren();
+  d.weeks.forEach(x => {
+    const b = el("button", "toggle", x.final ? `Week ${x.week}` : `Week ${x.week} · live`);
+    b.setAttribute("aria-pressed", x.week === d.week);
+    b.addEventListener("click", () => load(x.week));
+    box.append(b);
+  });
+}
+
+async function load(week) {
+  const q = week ? `?week=${week}` : (new URLSearchParams(location.search).get("week") ? `?week=${new URLSearchParams(location.search).get("week")}` : "");
+  try {
+    const r = await fetch("/api/weekly" + q);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    // A written recap, if one exists for this week.
+    const w = await fetch(`/recaps/${d.year}/week-${d.week}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
+    if (week) history.replaceState(null, "", `?week=${d.week}`);
+    weekButtons(d);
+    render(d, w);
+  } catch (e) {
+    document.getElementById("title").textContent = "Could not load the week";
+    document.getElementById("intro").textContent = e.message || "ESPN did not answer. Try again in a minute.";
+  }
+}
+load();
+</script>
+</body>
+</html>

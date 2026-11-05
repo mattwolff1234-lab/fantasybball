@@ -9,11 +9,15 @@ import { BENCH, IR, loadDays, bestLineup, dateOf, playerNames } from "../lib/day
 const seasonLabel = y => `${y - 1}-${String(y).slice(2)}`;
 const round1 = n => Math.round(n * 10) / 10;
 const decided = m => m.winner && m.winner !== "UNDECIDED";
+// A game that counts in the head-to-head: decided, not a consolation game, and not involving a
+// team already knocked out (the guillotine year).
+const out = (side, m) => side.eliminationMatchupPeriod > 0 && side.eliminationMatchupPeriod < m.matchupPeriodId;
+const real = m => m.home && m.away && decided(m) && ["NONE", "WINNERS_BRACKET", undefined].includes(m.playoffTierType) && !out(m.home, m) && !out(m.away, m);
 
 // Every finished matchup from earlier seasons, by owner name. The past never changes, so this is
 // read from ESPN once and saved.
 async function pastMeetings(years) {
-  const path = `h2h/before-${SEASON}.json`;
+  const path = `h2h/v2-before-${SEASON}.json`;
   try {
     const { blobs } = await list({ prefix: path, limit: 1 });
     if (blobs[0]) { const r = await fetch(blobs[0].url, { cache: "no-store" }); if (r.ok) return r.json(); }
@@ -23,10 +27,10 @@ async function pastMeetings(years) {
   for (const s of seasons.filter(Boolean)) {
     const [year, l] = s, names = teamsOf(l), regular = l.settings?.scheduleSettings?.matchupPeriodCount || 99;
     for (const m of l.schedule || []) {
-      if (!m.home || !m.away || !decided(m)) continue;
+      if (!real(m)) continue;
       const a = names[m.home.teamId]?.owner, b = names[m.away.teamId]?.owner;
       if (!a || !b) continue;
-      meetings.push({ season: seasonLabel(year), week: m.matchupPeriodId, playoff: m.matchupPeriodId > regular, a, b, ap: m.home.totalPoints, bp: m.away.totalPoints, winner: m.winner === "HOME" ? a : m.winner === "AWAY" ? b : null });
+      meetings.push({ season: seasonLabel(year), week: m.matchupPeriodId, playoff: m.playoffTierType === "WINNERS_BRACKET", a, b, ap: m.home.totalPoints, bp: m.away.totalPoints, winner: m.winner === "HOME" ? a : m.winner === "AWAY" ? b : null });
     }
   }
   if (seasons.every(Boolean)) await put(path, JSON.stringify(meetings), { access: "public", addRandomSuffix: false, allowOverwrite: true, contentType: "application/json" }).catch(() => null);
@@ -113,7 +117,7 @@ export default async function handler(req, res) {
       pastMeetings((league.status?.previousSeasons || []).filter(y => y >= 2019 && y < SEASON)).catch(() => []),
       playerNames().catch(() => ({})),
     ]);
-    const thisSeason = schedule.filter(decided).map(m => ({ season: seasonLabel(SEASON), week: m.matchupPeriodId, playoff: m.matchupPeriodId > regular, a: names[m.home.teamId]?.owner, b: names[m.away.teamId]?.owner, ap: m.home.totalPoints, bp: m.away.totalPoints, winner: m.winner === "HOME" ? names[m.home.teamId]?.owner : m.winner === "AWAY" ? names[m.away.teamId]?.owner : null }));
+    const thisSeason = schedule.filter(real).map(m => ({ season: seasonLabel(SEASON), week: m.matchupPeriodId, playoff: m.playoffTierType === "WINNERS_BRACKET", a: names[m.home.teamId]?.owner, b: names[m.away.teamId]?.owner, ap: m.home.totalPoints, bp: m.away.totalPoints, winner: m.winner === "HOME" ? names[m.home.teamId]?.owner : m.winner === "AWAY" ? names[m.away.teamId]?.owner : null }));
     const meetings = [...past, ...thisSeason];
 
     // Draft slot of every player, for "bust of the week".
@@ -149,19 +153,28 @@ export default async function handler(req, res) {
       }
     }
 
-    // Waiver, free agent and trade moves made this week, with what the new players scored.
-    const seen = new Set(), moves = Object.fromEntries(ids.map(id => [id, []]));
-    for (const p of periods) for (const t of days.get(p)?.tx || []) {
+    // Waiver, free agent and trade moves made this week, with what the new players scored. Each
+    // player's first and last move decide what happened: picked up, streamed (picked up and let go),
+    // dropped, or dropped and picked straight back up (left out).
+    const seen = new Set(), log = Object.fromEntries(ids.map(id => [id, {}]));
+    const txs = periods.flatMap(p => days.get(p)?.tx || []).sort((a, b) => a.at - b.at);
+    for (const t of txs) {
       const key = `${t.at}-${t.team}-${t.items.map(i => i.player).join(",")}`;
       if (seen.has(key)) continue;
       seen.add(key);
+      const trade = t.type.startsWith("TRADE");
+      const note = (tid, pid, act) => { if (log[tid]) (log[tid][pid] ||= []).push(act); };
       for (const i of t.items) {
-        const trade = t.type.startsWith("TRADE");
-        if (i.type === "ADD" || (trade && i.to)) moves[i.to]?.push({ kind: trade ? "trade" : "add", id: i.player, name: nameOf(i.player), points: 0 });
-        if (i.type === "DROP" || (trade && i.from)) moves[i.from]?.push({ kind: trade ? "traded" : "drop", id: i.player, name: nameOf(i.player) });
+        if (i.type === "ADD" || (trade && i.to)) note(i.to, i.player, trade ? "trade" : "add");
+        if (i.type === "DROP" || (trade && i.from)) note(i.from, i.player, trade ? "traded" : "drop");
       }
     }
-    for (const [tid, list] of Object.entries(moves)) for (const m of list) if (m.kind === "add" || m.kind === "trade") m.points = round1(team[tid].players[m.id]?.points || 0);
+    const moves = Object.fromEntries(ids.map(id => [id, Object.entries(log[id]).map(([pid, acts]) => {
+      const first = acts[0], last = acts[acts.length - 1], came = first === "add" || first === "trade";
+      const kind = came ? (last === "drop" || last === "traded" ? "streamed" : first) : (last === "add" || last === "trade" ? null : first);
+      const points = round1(team[id].players[pid]?.points || 0);
+      return kind && { kind, id: Number(pid), name: nameOf(Number(pid)), ...(came ? { points } : {}) };
+    }).filter(Boolean)]));
 
     const table = standings(schedule, ids, week);
     const before = week > 1 ? standings(schedule, ids, week - 1) : null;
@@ -231,7 +244,7 @@ export default async function handler(req, res) {
     add("bench", "Bench blunder", blunder, blunder.left, `Points left on the bench with the best possible lineups${blunder.benchBest ? `, ${blunder.benchBest.name} sat for ${blunder.benchBest.points}` : ""}`);
     const sharp = [...teams].sort((a, b) => b.efficiency - a.efficiency)[0];
     add("coach", "Coach of the week", sharp, sharp.efficiency + "%", "Closest to the best possible lineup every day");
-    const pickup = teams.flatMap(t => t.moves.filter(m => m.kind === "add").map(m => ({ ...m, owner: t.owner }))).sort((a, b) => b.points - a.points)[0];
+    const pickup = teams.flatMap(t => t.moves.filter(m => m.kind === "add" || m.kind === "streamed").map(m => ({ ...m, owner: t.owner }))).sort((a, b) => b.points - a.points)[0];
     if (pickup && pickup.points > 0) add("waiver", "Waiver hero", pickup.owner, pickup.points, `${pickup.name}, picked up this week`, pickup.id);
     const iron = [...teams].sort((a, b) => b.games - a.games)[0];
     add("volume", "Volume king", iron, iron.games, "Most games played by starters");
