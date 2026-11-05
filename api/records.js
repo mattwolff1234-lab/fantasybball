@@ -2,7 +2,7 @@
 // finished matchup, read from ESPN. The page merges these into the all-time lists, which come
 // from earlier seasons (public/records-data.js).
 import { list, put } from "@vercel/blob";
-import { SEASON, connected, espn, teamsOf } from "../lib/espn.js";
+import { SEASON, BASE, connected, espn, teamsOf } from "../lib/espn.js";
 
 const BENCH = 12, IR = 13; // ESPN lineup slots that do not score
 const label = `${SEASON - 1}-${String(SEASON).slice(2)}`;
@@ -32,11 +32,27 @@ async function readDay(period, names) {
   return games;
 }
 
-// ESPN counts one scoring period per calendar day, so a period's date is today minus the gap.
-function dateOf(period, today) {
-  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "America/New_York" }));
-  now.setDate(now.getDate() - (today - period));
-  return now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+// The date of each scoring period, from ESPN's NBA schedule. If that is unavailable, count back
+// from today, since ESPN has one scoring period per calendar day.
+let schedule = null;
+async function periodDates() {
+  if (!schedule) {
+    const r = await fetch(`${BASE}${SEASON}?view=proTeamSchedules_wl`);
+    if (!r.ok) throw new Error("ESPN answered " + r.status);
+    schedule = {};
+    for (const t of (await r.json()).settings?.proTeams || []) for (const [p, list] of Object.entries(t.proGamesByScoringPeriod || {}))
+      if (list[0]?.date && !schedule[p]) schedule[p] = list[0].date;
+  }
+  return schedule;
+}
+const fmt = d => new Date(d).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", year: "numeric" });
+function dater(dates, today) {
+  return period => {
+    if (dates[period]) return fmt(dates[period]);
+    const d = new Date();
+    d.setDate(d.getDate() - (today - period));
+    return fmt(d);
+  };
 }
 
 export default async function handler(req, res) {
@@ -48,16 +64,17 @@ export default async function handler(req, res) {
     const first = league.status?.firstScoringPeriod || 1;
     const regular = league.settings?.scheduleSettings?.matchupPeriodCount || 99;
 
-    const saved = await savedDays().catch(() => new Map());
+    const [saved, dates] = await Promise.all([savedDays().catch(() => new Map()), periodDates().catch(() => ({}))]);
+    const dateOf = dater(dates, today);
     const games = [];
     const missing = [];
-    for (let p = first; p <= today; p++) saved.has(p) ? games.push(...saved.get(p).map(g => ({ ...g, date: dateOf(p, today) }))) : missing.push(p);
+    for (let p = first; p <= today; p++) saved.has(p) ? games.push(...saved.get(p).map(g => ({ ...g, date: dateOf(p) }))) : missing.push(p);
     // A few days at a time, so ESPN is not hit with the whole season at once.
     for (let i = 0; i < missing.length; i += 6) {
       const batch = missing.slice(i, i + 6);
       const days = await Promise.all(batch.map(p => readDay(p, names)));
       await Promise.all(batch.map((p, j) => {
-        games.push(...days[j].map(g => ({ ...g, date: dateOf(p, today) })));
+        games.push(...days[j].map(g => ({ ...g, date: dateOf(p) })));
         // Stats can still be corrected the day after, so only days older than that are kept.
         if (p > today - 2) return null;
         return put(`${folder}day-${p}.json`, JSON.stringify(days[j]), { access: "public", addRandomSuffix: false, allowOverwrite: true, contentType: "application/json" }).catch(() => null);
