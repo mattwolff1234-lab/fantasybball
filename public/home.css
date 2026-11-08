@@ -207,3 +207,40 @@ footer{display:flex;justify-content:space-between;gap:16px;border-top:1px solid 
   th,td{padding-left:10px}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* Trade finder: filters, trade-size toggles, one card per offer, and the player values table. */
+.finder{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.finder label{display:flex;flex-direction:column;gap:6px;font:400 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.finder select,#valuesOf{font:400 14px/1.2 var(--sans);color:var(--ink);background:var(--panel);border:1px solid #33343a;border-radius:10px;padding:10px 12px;width:100%;min-width:0;letter-spacing:0;text-transform:none}
+#valuesOf{width:auto}
+.sizes,.keep{display:flex;flex-wrap:wrap;gap:8px}
+.keep .toggle{font-weight:400}
+.offers{counter-reset:n;display:flex;flex-direction:column}
+.offers .empty{color:var(--muted);border-top:1px solid var(--line);padding-block:18px}
+.offer{counter-increment:n;position:relative;display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line);padding:20px 0 20px 44px}
+.offer::before{content:counter(n,decimal-leading-zero);position:absolute;left:0;top:23px;font:400 12px/1 var(--mono);color:var(--muted)}
+.swap{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.swap h3{padding-bottom:8px}
+.mini2 li{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding-block:7px;border-top:1px solid var(--line)}
+.mini2 b{font-size:14px}
+.mini2 small{grid-column:1;font:400 11px/1.3 var(--mono);color:var(--muted)}
+.mini2 small em{font-style:normal;color:var(--bad)}
+.mini2 span{grid-row:1/3;grid-column:2;align-self:center;font:400 12px/1 var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.mini2 .flag{grid-column:1/-1;font:400 11px/1.3 var(--mono);font-style:normal;color:var(--gold)}
+.nums{display:flex;flex-wrap:wrap;gap:6px 28px;align-items:baseline}
+.nums p{color:var(--muted);font-size:13px}
+.nums .gap{margin-right:6px}
+.nums small{font-size:12px}
+.fill{color:var(--muted);font-size:12px}
+.pickup{color:var(--gold);font-size:13px;border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel)}
+.values td.name{white-space:normal;min-width:220px}
+.values small{font:400 11px/1 var(--mono);color:var(--muted);font-weight:400}
+.values .why{font:400 12px/1.4 var(--sans);color:var(--muted);margin-top:4px;max-width:46ch}
+.values .dim2{color:var(--muted)}
+.how{display:flex;flex-direction:column;gap:14px;max-width:70ch}
+.how b{color:var(--ink)}
+@media (max-width:640px){
+  .swap{grid-template-columns:1fr;gap:12px}
+  .offer{padding-left:0}
+  .offer::before{display:none}
+}

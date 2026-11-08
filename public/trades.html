@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Trade Finder · Fantasy Hoops</title>
+<meta name="description" content="Find trades that help your team for the rest of the season.">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/home.css">
+</head>
+<body>
+<header class="top">
+  <a class="mark" href="/">Fantasy Hoops</a>
+  <nav>
+    <a href="/recap.html">Weekly</a>
+    <a href="/#history">History</a>
+    <a href="/records.html">Records</a>
+    <a href="/teams.html">Teams</a>
+    <a href="/trades.html">Trades</a>
+    <a href="/guide.html">Draft guide</a>
+    <a href="/draft.html">Draft board</a>
+  </nav>
+</header>
+
+<section class="hero small">
+  <p class="eyebrow">2026-27 season</p>
+  <h1>Trade finder</h1>
+  <p class="lede wide-lede">Trades that add the most points to your team from now to the end of the season, using this season's average, last season's, and the injury news behind hot starts.</p>
+</section>
+
+<main>
+  <section>
+    <div class="head"><h2>Find a trade</h2><p id="note">Loading from ESPN</p></div>
+    <div class="finder">
+      <label>You are<select id="me"></select></label>
+      <label>Trade with<select id="partner"><option value="">Every team</option></select></label>
+      <label>Sort<select id="sort">
+        <option value="likely">Best for me that looks fair to them</option>
+        <option value="even">Most balanced: helps me, costs them least</option>
+        <option value="mine">Best for me, whatever they think</option>
+      </select></label>
+      <label>Must get<select id="get"><option value="">Anyone</option></select></label>
+      <label>Must give<select id="give"><option value="">Anyone</option></select></label>
+    </div>
+    <div class="sizes" id="sizes" aria-label="Trade sizes"></div>
+    <div>
+      <h3>Keep off the table</h3>
+      <div class="keep" id="keep"></div>
+    </div>
+    <p class="pickup" id="pickup" hidden></p>
+    <ol class="offers" id="offers"></ol>
+  </section>
+
+  <section>
+    <div class="head"><h2>Player values</h2><div class="side"><p>Points per game from here, and rest-of-season points</p><select id="valuesOf" aria-label="Whose players"></select></div></div>
+    <div class="scroll"><table class="values">
+      <thead><tr><th>Player</th><th>This season</th><th>Last season</th><th>From here</th><th>Games</th><th>Points</th></tr></thead>
+      <tbody id="values"></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <div class="head"><h2>How it works</h2></div>
+    <div class="words how">
+      <p><b>Points per game from here.</b> This season's average, pulled towards last season's while the sample is small: after 12 games each counts half. Rookies, and players who barely played last season, lean on ESPN's preseason projection instead, which counts like only 3 games because it was a guess before he played.</p>
+      <p><b>Injury bumps.</b> When a player's minutes are up, the tool reads his ESPN news. If it says he is filling in for a hurt teammate, it counts how many of his games came without that teammate and how long the teammate is still out, and takes off the part of the jump that will not last. A one-game rest day barely moves it; a starter out for two months keeps most of it.</p>
+      <p><b>Games left.</b> His NBA team's games through the end of our fantasy playoffs, less the games the news says he will miss, times how often he played this season and last. A game he misses is not a zero: as in the draft guide, a free-agent pickup covers half of them.</p>
+      <p><b>Uneven trades.</b> Every roster is first topped up from free agents: if a free agent beats a team's worst player, the tool assumes the pickup happens anyway, so no trade gets credit for it. After that, the team that ends up with fewer players fills the open spot with the next best free agent, and the team with too many drops its weakest player. Then both rosters are played day by day for the rest of the season with only the starters' games counting, so a 2-for-1 is judged on what the extra body really adds.</p>
+      <p><b>"Looks fair to them"</b> means the other owner comes out ahead on ESPN's season averages, the numbers they will see. Positions are ignored, so check that your lineup still fills.</p>
+    </div>
+  </section>
+</main>
+
+<footer><span>fantasyhoops.fun</span><a href="/">Home</a></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const one = n => (Math.round(n * 10) / 10).toFixed(1);
+const signed = n => (n >= 0 ? "+" : "−") + one(Math.abs(n));
+const SIZES = [[1, 1], [2, 1], [1, 2], [2, 2], [3, 2], [2, 3]];
+const SHOW = 25, REFINE = 400;
+let D, byId, teams, free, freeBy, plays, keep = new Set(), sizes = new Set(["1-1", "2-1", "1-2", "2-2", "3-2"]);
+
+function combos(list, k, start = 0, pre = [], out = []) {
+  if (pre.length === k) { out.push(pre); return out; }
+  for (let i = start; i < list.length; i++) combos(list, k, i + 1, [...pre, list[i]], out);
+  return out;
+}
+
+// A roster at its best: the top players from it and the free agents, up to the roster size,
+// so a free agent better than the worst player is picked up. Run on the roster before and after
+// a trade, so a trade only gets credit for what its open (or lost) spot changes. Players in an
+// IR slot do not take a roster spot.
+function settle(ids, key = "ros") {
+  const own = ids.filter(id => !byId.get(id).ir).sort((a, b) => byId.get(b)[key] - byId.get(a)[key]);
+  const ir = ids.filter(id => byId.get(id).ir), fa = freeBy[key], active = [], added = [];
+  let i = 0, j = 0;
+  while (active.length < D.size && (i < own.length || j < fa.length)) {
+    if (j < fa.length && ids.includes(fa[j].id)) { j++; continue; }
+    if (i < own.length && (j >= fa.length || byId.get(own[i])[key] >= fa[j][key])) active.push(own[i++]);
+    else { active.push(fa[j].id); added.push(fa[j++].id); }
+  }
+  return { active, ir, added, dropped: own.filter(id => !active.includes(id)) };
+}
+const sum = (ids, key = "ros") => ids.reduce((t, id) => t + byId.get(id)[key], 0);
+
+// The rest of the season day by day: each day only the best `starters` of the players with a
+// game score, so depth is worth what it really adds.
+function season(ids) {
+  const rows = ids.map(id => plays.get(id)), today = [];
+  let total = 0;
+  for (let d = 0; d < D.span; d++) {
+    today.length = 0;
+    for (const r of rows) if (r[d]) today.push(r[d]);
+    if (today.length > D.starters) today.sort((a, b) => b - a).length = D.starters;
+    for (const v of today) total += v;
+  }
+  return total;
+}
+
+function search() {
+  const me = Number($("me").value), list = $("offers");
+  list.replaceChildren();
+  if (!me) { $("pickup").hidden = true; list.append(el("li", "empty", "Pick your team to see trades.")); return; }
+  const now = settle(teams.get(me).players), tip = $("pickup");
+  tip.hidden = !now.added.length;
+  if (now.added.length) tip.textContent = `Before any trade: ${now.added.map(id => byId.get(id).name).join(", ")} ${now.added.length > 1 ? "are free agents who beat" : "is a free agent who beats"} ${now.dropped.map(id => byId.get(id).name).join(", ")} on your roster. Every trade below assumes you make ${now.added.length > 1 ? "those pickups" : "that pickup"} either way.`;
+  const mine = teams.get(me).players.filter(id => !keep.has(id));
+  const must = { get: Number($("get").value), give: Number($("give").value) };
+  const partners = [...teams.keys()].filter(id => id !== me && (!$("partner").value || id === Number($("partner").value)));
+  const mode = $("sort").value;
+  const base = new Map([...teams].map(([id, t]) => [id, sum(settle(t.players).active)]));
+  const paperBase = new Map([...teams].map(([id, t]) => [id, sum(settle(t.players, "naive").active, "naive")]));
+  const found = [];
+
+  for (const [give, get] of SIZES.filter(([a, b]) => sizes.has(`${a}-${b}`))) {
+    const gives = combos(mine, give).filter(c => !must.give || c.includes(must.give));
+    for (const pid of partners) {
+      const theirs = teams.get(pid).players;
+      const gets = combos(theirs, get).filter(c => !must.get || c.includes(must.get));
+      if (!gets.length) continue;
+      const myRest = teams.get(me).players, theirRest = theirs;
+      for (const g of gives) for (const r of gets) {
+        const meAfter = myRest.filter(id => !g.includes(id)).concat(r), themAfter = theirRest.filter(id => !r.includes(id)).concat(g);
+        const mineGain = sum(settle(meAfter).active) - base.get(me);
+        if (mineGain <= 0) continue;
+        const theirGain = sum(settle(themAfter).active) - base.get(pid);
+        const paper = sum(settle(themAfter, "naive").active, "naive") - paperBase.get(pid);
+        if (mode === "likely" && paper < 0) continue;
+        found.push({ pid, g, r, meAfter, themAfter, key: mode === "even" ? Math.min(mineGain, theirGain) : mineGain, paper });
+      }
+    }
+  }
+
+  // Check the best candidates day by day, then sort again.
+  found.sort((a, b) => b.key - a.key);
+  const seasonBase = new Map();
+  const seasonOf = id => seasonBase.get(id) ?? seasonBase.set(id, season(settle(teams.get(id).players).active)).get(id);
+  const offers = found.slice(0, REFINE).map(o => {
+    const a = settle(o.meAfter), b = settle(o.themAfter);
+    const mineGain = (season(a.active) - seasonOf(me)) / D.weeksLeft, theirGain = (season(b.active) - seasonOf(o.pid)) / D.weeksLeft;
+    return { ...o, a, b, mineGain, theirGain, paper: o.paper / D.weeksLeft };
+  }).filter(o => o.mineGain > 0.5);
+  offers.sort((x, y) => mode === "even" ? Math.min(y.mineGain, y.theirGain) - Math.min(x.mineGain, x.theirGain) : y.mineGain - x.mineGain);
+
+  // No more than two offers for the same players, and when searching every team, no more than
+  // four with any one team, so the list is not one owner's roster in different orders.
+  const seen = new Map(), per = new Map(), shown = [], cap = $("partner").value ? SHOW : 4;
+  for (const o of offers) {
+    const k = o.pid + ":" + o.r.slice().sort().join(",");
+    if ((seen.get(k) || 0) >= 2 || (per.get(o.pid) || 0) >= cap) continue;
+    seen.set(k, (seen.get(k) || 0) + 1);
+    per.set(o.pid, (per.get(o.pid) || 0) + 1);
+    shown.push(o);
+    if (shown.length === SHOW) break;
+  }
+  if (!shown.length) list.append(el("li", "empty", mode === "likely" ? "Nothing that helps you also looks fair to them on ESPN's numbers. Try another sort or more trade sizes." : "No trade found that helps you. Try more trade sizes or fewer players kept off the table."));
+  shown.forEach(o => list.append(offer(o)));
+}
+
+function chip(id) {
+  const p = byId.get(id), li = el("li");
+  const name = el("b", null, p.name), meta = el("small", null, `${p.pos} · ${p.team}`);
+  if (p.injury) meta.append(" · ", el("em", null, p.injury));
+  li.append(name, meta, el("span", null, `${one(p.ppg)}/g · ${Math.round(p.games)} g`));
+  if (p.boost) li.append(el("i", "flag", p.boost.teammate ? `Injury bump: ${Math.round(p.boost.cut * 100)}% of his jump taken off` : "Injury bump"));
+  li.title = p.why.join("\n");
+  return li;
+}
+
+function offer(o) {
+  const li = el("li", "offer"), t = teams.get(o.pid);
+  const head = el("div", "line");
+  head.append(el("b", null, `With ${t.owner}`), el("span", "season", `You give ${o.g.length}, get ${o.r.length}`));
+  const cols = el("div", "swap");
+  const getCol = el("div"), giveCol = el("div");
+  getCol.append(el("h3", null, "You get"), Object.assign(el("ol", "mini2"), {}));
+  giveCol.append(el("h3", null, "You give"), el("ol", "mini2"));
+  o.r.forEach(id => getCol.lastChild.append(chip(id)));
+  o.g.forEach(id => giveCol.lastChild.append(chip(id)));
+  cols.append(getCol, giveCol);
+  const nums = el("div", "nums");
+  const you = el("p"), them = el("p");
+  you.append(el("span", "gap good", signed(o.mineGain)), " pts a week for you");
+  them.append(el("span", "gap " + (o.theirGain >= 0 ? "good" : "bad"), signed(o.theirGain)), ` for ${t.owner}`, el("small", null, ` · ${signed(o.paper)} on ESPN's averages`));
+  nums.append(you, them);
+  li.append(head, cols, nums);
+  const extra = [];
+  const names = ids => ids.map(id => `${byId.get(id).name} (${one(byId.get(id).ppg)})`).join(", ");
+  const before = id => settle(teams.get(id).players);
+  const news = (now, was, traded) => now.filter(id => !was.includes(id) && !traded.includes(id));
+  const mineBefore = before(Number($("me").value)), theirsBefore = before(o.pid);
+  const aAdd = news(o.a.added, mineBefore.added, []), aDrop = news(o.a.dropped, mineBefore.dropped, o.g);
+  const bAdd = news(o.b.added, theirsBefore.added, []), bDrop = news(o.b.dropped, theirsBefore.dropped, o.r);
+  if (aAdd.length) extra.push(`You pick up ${names(aAdd)}`);
+  if (aDrop.length) extra.push(`You drop ${names(aDrop)}`);
+  if (bAdd.length) extra.push(`${t.owner} picks up ${names(bAdd)}`);
+  if (bDrop.length) extra.push(`${t.owner} drops ${names(bDrop)}`);
+  if (extra.length) li.append(el("p", "fill", extra.join(" · ")));
+  return li;
+}
+
+function values() {
+  const who = Number($("valuesOf").value), body = $("values");
+  const list = who ? teams.get(who).players : free.slice(0, 25).map(p => p.id);
+  body.replaceChildren(...list.map(id => byId.get(id)).sort((a, b) => b.ros - a.ros).map(p => {
+    const tr = el("tr"), name = el("td", "name left");
+    name.append(p.name, el("small", null, ` ${p.pos} · ${p.team}${p.injury ? " · " + p.injury : ""}`));
+    const why = el("div", "why", p.why.slice(1).join(". "));
+    if (why.textContent) name.append(why);
+    const cur = p.cur ? `${one(p.cur.ppg)} · ${p.cur.gp} g` : "–", last = p.last ? `${one(p.last.ppg)} · ${p.last.gp} g` : "–";
+    tr.append(name, el("td", null, cur), el("td", "dim2", last), el("td", "gold", one(p.ppg)), el("td", null, Math.round(p.games) + (p.missed ? ` (−${p.missed})` : "")), el("td", null, p.ros.toLocaleString()));
+    return tr;
+  }));
+}
+
+function keepChips() {
+  const me = Number($("me").value), box = $("keep");
+  box.replaceChildren();
+  if (!me) return;
+  teams.get(me).players.map(id => byId.get(id)).sort((a, b) => b.ros - a.ros).forEach(p => {
+    const b = el("button", "toggle", p.name);
+    b.setAttribute("aria-pressed", keep.has(p.id));
+    b.onclick = () => { keep.has(p.id) ? keep.delete(p.id) : keep.add(p.id); b.setAttribute("aria-pressed", keep.has(p.id)); search(); };
+    box.append(b);
+  });
+}
+
+function playerLists() {
+  const me = Number($("me").value), pid = Number($("partner").value);
+  const opt = (id, label) => new Option(label || `${byId.get(id).name} · ${teams.get(byId.get(id).owner).owner}`, id);
+  const others = [...teams.values()].filter(t => t.id !== me && (!pid || t.id === pid)).flatMap(t => t.players).sort((a, b) => byId.get(b).ros - byId.get(a).ros);
+  $("get").replaceChildren(new Option("Anyone", ""), ...others.map(id => opt(id)));
+  $("give").replaceChildren(new Option("Anyone", ""), ...(me ? teams.get(me).players.slice().sort((a, b) => byId.get(b).ros - byId.get(a).ros).map(id => opt(id, byId.get(id).name)) : []));
+}
+
+fetch("/api/trades").then(async r => {
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error);
+  D = { ...d, span: d.end - d.today + 1 };
+  byId = new Map(d.players.map(p => [p.id, p]));
+  teams = new Map(d.teams.map(t => [t.id, { ...t, players: d.players.filter(p => p.owner === t.id).map(p => p.id) }]));
+  free = d.players.filter(p => !p.owner).sort((a, b) => b.ros - a.ros);
+  freeBy = { ros: free, naive: free.slice().sort((a, b) => b.naive - a.naive) };
+  // Each player's expected points on each day his team plays. When he sits, a pickup plays
+  // some of those games, as in the draft guide.
+  const fill = d.covered * d.repl;
+  plays = new Map(d.players.map(p => {
+    const days = new Float32Array(D.span);
+    (d.days[p.pro] || []).forEach((x, i) => { if (x < D.span) days[x] = i < p.missed ? fill : p.ppg * p.health + fill * (1 - p.health); });
+    return [p.id, days];
+  }));
+
+  let saved = "";
+  try { saved = localStorage.getItem("draftMe") || ""; } catch (e) {}
+  const owners = [...teams.values()].sort((a, b) => a.owner.localeCompare(b.owner));
+  $("me").replaceChildren(new Option("Pick your team", ""), ...owners.map(t => new Option(t.owner, t.id)));
+  const mine = owners.find(t => t.owner === saved);
+  if (mine) $("me").value = mine.id;
+  $("valuesOf").replaceChildren(...owners.map(t => new Option(t.owner, t.id)), new Option("Best free agents", "0"));
+  $("valuesOf").value = mine ? mine.id : "0";
+
+  const fillPartners = () => $("partner").replaceChildren(new Option("Every team", ""), ...owners.filter(t => t.id !== Number($("me").value)).map(t => new Option(t.owner, t.id)));
+  fillPartners();
+  $("sizes").replaceChildren(...SIZES.map(([a, b]) => {
+    const k = `${a}-${b}`, btn = el("button", "toggle", `${a} for ${b}`);
+    btn.title = `You give ${a}, you get ${b}`;
+    btn.setAttribute("aria-pressed", sizes.has(k));
+    btn.onclick = () => { sizes.has(k) ? sizes.delete(k) : sizes.add(k); btn.setAttribute("aria-pressed", sizes.has(k)); search(); };
+    return btn;
+  }));
+  $("me").onchange = () => {
+    const t = teams.get(Number($("me").value));
+    try { t ? localStorage.setItem("draftMe", t.owner) : localStorage.removeItem("draftMe"); } catch (e) {}
+    keep.clear(); fillPartners(); playerLists(); keepChips();
+    if (t) { $("valuesOf").value = t.id; values(); }
+    search();
+  };
+  $("partner").onchange = () => { playerLists(); search(); };
+  ["sort", "get", "give"].forEach(id => $(id).onchange = search);
+  $("valuesOf").onchange = values;
+  playerLists(); keepChips(); values(); search();
+  $("note").textContent = `Live from ESPN · ${D.weeksLeft} weeks left · ${D.starters} starters a day`;
+}).catch(e => $("note").textContent = e.message || "Could not load the league.");
+</script>
+</body>
+</html>
