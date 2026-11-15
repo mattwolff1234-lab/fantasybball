@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>The Gauntlet · Fantasy Hoops</title>
+<meta name="description" content="The race to stay out of last place in our fantasy basketball league. Fewest season points gets cut on Jan 4, Feb 1 and Mar 1.">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/home.css">
+</head>
+<body>
+<header class="top">
+  <a class="mark" href="/">Fantasy Hoops</a>
+  <nav>
+    <a href="/#history">History</a>
+    <a href="/records.html">Records</a>
+    <a href="/teams.html">Teams</a>
+    <a href="/gauntlet.html">Gauntlet</a>
+    <a href="/guide.html">Draft guide</a>
+    <a href="/draft.html">Draft board</a>
+  </nav>
+</header>
+
+<section class="hero small">
+  <p class="eyebrow">2026-27 season</p>
+  <h1>The Gauntlet</h1>
+  <p class="lede">Fewest total points on the season gets cut. Three cuts: January 4, February 1 and March 1.</p>
+</section>
+
+<main>
+  <section>
+    <div class="head"><h2>The race</h2><p id="note">Loading from ESPN</p></div>
+    <div class="race-bar"><p id="day"></p><button class="toggle" id="replay" type="button" hidden>Replay</button></div>
+    <div class="race" id="race"></div>
+  </section>
+  <section>
+    <div class="head"><h2 id="cutTitle">Next cut</h2><p id="cutNote"></p></div>
+    <div class="scroll"><table class="cushion"><thead><tr><th>#</th><th>Team</th><th>Points</th><th>Clear of last</th></tr></thead><tbody id="table"></tbody></table></div>
+  </section>
+</main>
+
+<footer><span>fantasyhoops.fun</span><a href="/">Home</a></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+const SVG = "http://www.w3.org/2000/svg";
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const svg = (tag, attrs = {}, parent) => { const e = document.createElementNS(SVG, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.append(e); return e; };
+const num = n => n.toLocaleString("en-US", { maximumFractionDigits: 1 });
+const still = matchMedia("(prefers-reduced-motion:reduce)").matches;
+
+// ESPN's day 1 was opening night, and every calendar day after is one more day.
+const OPENING = Date.UTC(2026, 9, 20);
+const dateOf = day => new Date(OPENING + (day - 1) * 864e5);
+const dayOf = iso => Math.round((Date.parse(iso) - OPENING) / 864e5) + 1;
+const short = day => dateOf(day).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+// Each cut counts games through the Sunday before it.
+const CUTS = [["Jan 4", "2027-01-03"], ["Feb 1", "2027-01-31"], ["Mar 1", "2027-02-28"]].map(([name, last]) => ({ name, last: dayOf(last) }));
+
+let pick = null;
+try { pick = localStorage.getItem("gauntletTeam") || null; } catch {}
+
+fetch("/api/gauntlet").then(async r => {
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error);
+  const today = d.today, end = Math.min(today, CUTS.at(-1).last);
+  const teams = d.teams.map(t => {
+    let sum = 0;
+    return { ...t, id: String(t.id), total: t.points.slice(0, end).reduce((a, b) => a + b, 0), cum: [0, ...t.points.slice(0, end).map(p => sum += p)] };
+  });
+
+  // A cut is final once its last day is over. The lowest season total among teams still alive goes.
+  const out = {};
+  for (const c of CUTS) {
+    if (today <= c.last) break;
+    const alive = teams.filter(t => !out[t.id]);
+    const gone = alive.reduce((a, b) => b.cum[c.last] < a.cum[c.last] ? b : a);
+    out[gone.id] = c;
+  }
+  const lastDay = t => out[t.id] ? out[t.id].last : end;
+
+  // Rank 1 is the most points so far that day, counted among the teams still alive.
+  const ranks = {};
+  teams.forEach(t => ranks[t.id] = []);
+  const aliveOn = day => teams.filter(t => !out[t.id] || out[t.id].last >= day);
+  for (let day = 1; day <= end; day++) {
+    aliveOn(day).sort((a, b) => b.cum[day] - a.cum[day] || a.id.localeCompare(b.id)).forEach((t, i) => ranks[t.id][day] = i + 1);
+  }
+
+  table(teams, out, end);
+  const state = { p: 1 };
+  let draw = chart(teams, ranks, out, lastDay, end);
+  const tl = gsap.to(state, { p: end, duration: still ? 0 : Math.min(14, Math.max(4, end * .18)), ease: "none", onUpdate: () => draw(state.p), delay: .3 });
+  draw(1);
+  const replay = document.getElementById("replay");
+  replay.hidden = false;
+  replay.onclick = () => tl.restart(true);
+  let wide = innerWidth;
+  addEventListener("resize", () => {
+    if (innerWidth === wide) return;
+    wide = innerWidth;
+    draw = chart(teams, ranks, out, lastDay, end);
+    draw(state.p);
+  });
+  document.getElementById("note").textContent = "Live from ESPN · tap a team to follow it";
+}).catch(e => document.getElementById("note").textContent = e.message || "Could not load the race.");
+
+// Draws the bump chart for the current screen width and returns a function that moves the race to any day.
+function chart(teams, ranks, out, lastDay, end) {
+  const box = document.getElementById("race");
+  const W = box.clientWidth, phone = W < 560;
+  const rowH = phone ? 40 : 46, rows = teams.length, logo = phone ? 22 : 26;
+  const L = phone ? 22 : 30, R = phone ? 46 : 64, T = 22, B = 30;
+  const H = T + rows * rowH + B;
+  const x = day => L + (day - 1) / (end - 1) * (W - L - R);
+  const y = rank => T + (rank - .5) * rowH;
+  const ease = u => u * u * (3 - 2 * u);
+  const at = (t, p) => {
+    const a = Math.floor(p), b = Math.min(a + 1, lastDay(t));
+    const ya = y(ranks[t.id][a]);
+    return [x(p), ya + (y(ranks[t.id][b]) - ya) * ease(p - a)];
+  };
+
+  const root = svg("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", "aria-label": "Each team's rank by season points, day by day" });
+  const defs = svg("defs", {}, root);
+  svg("circle", { cx: .5, cy: .5, r: .5 }, svg("clipPath", { id: "round", clipPathUnits: "objectBoundingBox" }, defs));
+  const reveal = svg("rect", { x: 0, y: 0, width: 0, height: H }, svg("clipPath", { id: "reveal" }, defs));
+
+  const danger = svg("rect", { class: "danger", x: L - 8, width: W - L - R + 16 + logo / 2, height: rowH, rx: 8 }, root);
+  for (let r = 1; r <= rows; r++) svg("text", { class: "rank", x: 0, y: y(r) + 4 }, root).textContent = r;
+
+  const axis = svg("g", { class: "axis" }, root);
+  const tick = (day, label, anchor) => svg("text", { x: x(day), y: H - 8, "text-anchor": anchor }, axis).textContent = label;
+  tick(1, short(1), "start");
+  tick(end, end === CUTS.at(-1).last ? short(end) : "Today", "end");
+  for (let day = 2; day < end; day++) {
+    if (dateOf(day).getUTCDate() === 1 && x(day) - x(1) > 44 && x(end) - x(day) > 44) tick(day, short(day), "middle");
+  }
+  CUTS.filter(c => c.last <= end).forEach(c => {
+    svg("line", { class: "cutline", x1: x(c.last), x2: x(c.last), y1: T - 6, y2: H - B + 4 }, root);
+    svg("text", { class: "cutlabel", x: x(c.last) - 4, y: T - 10, "text-anchor": "end" }, root).textContent = c.name + " cut";
+  });
+
+  const lines = svg("g", { "clip-path": "url(#reveal)" }, root);
+  const heads = svg("g", {}, root);
+  const parts = teams.map(t => {
+    const pts = [];
+    for (let day = 1; day <= lastDay(t); day++) for (let s = 0; s < (day < lastDay(t) ? 8 : 1); s++) pts.push(at(t, day + s / 8).map(n => n.toFixed(1)).join(","));
+    const line = svg("polyline", { class: "trail", points: pts.join(" ") }, lines);
+    const head = svg("g", { class: "head", tabindex: 0, role: "button", "aria-label": `${t.team}, ${t.owner}` }, heads);
+    svg("circle", { class: "plate", r: logo / 2 }, head);
+    svg("text", { class: "initial", y: 4 }, head).textContent = t.team.slice(0, 1);
+    if (t.logo) svg("image", { href: t.logo, x: -logo / 2, y: -logo / 2, width: logo, height: logo, "clip-path": "url(#round)", preserveAspectRatio: "xMidYMid slice" }, head);
+    svg("circle", { class: "ring", r: logo / 2 + 1.5 }, head);
+    const name = t.team.length > 18 ? t.team.slice(0, 17).trim() + "…" : t.team;
+    svg("text", { class: "name", y: logo / 2 + (phone ? 10 : 12) }, head).textContent = name;
+    const tag = svg("text", { class: "outtag", x: -logo / 2 - 5, y: 4, "text-anchor": "end" }, head);
+    const choose = () => { pick = pick === t.id ? null : t.id; try { localStorage.setItem("gauntletTeam", pick || ""); } catch {} paint(); };
+    head.addEventListener("click", choose);
+    head.addEventListener("keydown", e => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), choose()));
+    return { t, line, head, tag };
+  });
+  // The team being followed draws on top, in gold.
+  const paint = () => parts.forEach(({ t, line, head }) => {
+    line.classList.toggle("mine", t.id === pick);
+    head.classList.toggle("mine", t.id === pick);
+    if (t.id === pick) { lines.append(line); heads.append(head); }
+    document.querySelectorAll(`#table tr[data-id]`).forEach(tr => tr.classList.toggle("mine", tr.dataset.id === pick));
+  });
+  window.followTeam = id => { pick = pick === id ? null : id; try { localStorage.setItem("gauntletTeam", pick || ""); } catch {} paint(); };
+  paint();
+  box.replaceChildren(root);
+
+  const dayText = document.getElementById("day");
+  return p => {
+    const day = Math.floor(p);
+    reveal.setAttribute("width", x(p) + 1);
+    // A cut team drops out the day after its cut, or at the very end when the race stops on a cut.
+    const gone = t => out[t.id] && (day > out[t.id].last || p >= end);
+    const last = parts.filter(({ t }) => !gone(t)).reduce((a, b) => ranks[b.t.id][day] > ranks[a.t.id][day] ? b : a).t;
+    danger.setAttribute("y", y(ranks[last.id][day]) - rowH / 2);
+    parts.forEach(({ t, head, tag }) => {
+      const [hx, hy] = at(t, Math.min(p, lastDay(t)));
+      head.setAttribute("transform", `translate(${hx.toFixed(1)},${hy.toFixed(1)})`);
+      head.classList.toggle("gone", !!gone(t));
+      head.classList.toggle("last", t === last);
+      tag.textContent = gone(t) ? "Out " + out[t.id].name : "";
+    });
+    dayText.textContent = `${short(day)} · last place: ${last.owner}`;
+  };
+}
+
+// Season totals, and how far each team is clear of the bottom spot.
+function table(teams, out, end) {
+  const alive = teams.filter(t => !out[t.id]).sort((a, b) => b.total - a.total);
+  const low = alive.at(-1).total, second = alive.at(-2).total;
+  const body = document.getElementById("table");
+  const row = (t, rank, gap, cls) => {
+    const tr = el("tr"), team = el("td", "team"), wrap = el("div"), text = el("div");
+    tr.dataset.id = t.id;
+    if (cls) tr.className = cls;
+    const img = el("img");
+    img.src = t.logo; img.alt = ""; img.loading = "lazy";
+    img.onerror = () => img.style.visibility = "hidden";
+    text.append(el("b", null, t.team), el("small", null, t.owner));
+    wrap.append(img, text);
+    team.append(wrap);
+    tr.append(el("td", "dim", rank), team, el("td", null, num(t.total)), gap);
+    tr.onclick = () => window.followTeam(t.id);
+    body.append(tr);
+  };
+  alive.forEach((t, i) => {
+    const last = i === alive.length - 1;
+    const gap = last ? el("td", "gap bad", `${num(second - low)} behind`) : el("td", "gap", "+" + num(t.total - low));
+    row(t, i + 1, gap, last ? "last" : "");
+  });
+  teams.filter(t => out[t.id]).sort((a, b) => b.cum[out[b.id].last] - a.cum[out[a.id].last]).forEach(t => row(t, "–", el("td", "dim", "Out " + out[t.id].name), "out"));
+
+  const next = CUTS.find(c => !Object.values(out).includes(c));
+  const title = document.getElementById("cutTitle"), note = document.getElementById("cutNote");
+  if (!next) { title.textContent = "All three cuts are done"; note.textContent = "Season points through Feb 28"; return; }
+  const days = next.last - end;
+  title.textContent = `Next cut · ${next.name}`;
+  note.textContent = (days ? `${days} day${days === 1 ? "" : "s"} to go after today` : "Today is the last day that counts") + ` · games through ${short(next.last)} count`;
+}
+</script>
+</body>
+</html>
