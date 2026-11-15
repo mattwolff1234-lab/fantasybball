@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pickups · Fantasy Hoops</title>
+<meta name="description" content="Pick up a free agent any time before his game tips off, straight onto your ESPN team.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#070708">
+<link rel="stylesheet" href="/home.css">
+<style>
+/* Pickups: one narrow column of cards. Step 1 picks the free agent, step 2 picks who leaves, and a sheet confirms. */
+[hidden]{display:none!important}
+.pkhero{max-width:640px;padding-block:clamp(32px,7vh,72px) 24px}
+.pkhero h1{font-size:clamp(48px,13vw,88px)}
+.pkhero .lede{max-width:38ch;margin-top:16px}
+@media (max-width:480px){.pkhero{padding-block:24px 20px}.pkhero .lede{font-size:15px;margin-top:12px}}
+/* How it works: a silent screen recording beside four steps. Open on the first visit, a button after that. */
+.howbtn{display:inline-flex;align-items:center;gap:9px;margin-top:18px;font:700 13px/1 var(--sans);padding:10px 15px;border-radius:999px;border:1px solid #2e2e34;background:none;color:var(--ink);cursor:pointer}
+.howbtn::before{content:"";border-style:solid;border-width:5px 0 5px 8px;border-color:transparent transparent transparent currentColor}
+.howbtn:hover{border-color:var(--muted)}
+.howhead{display:flex;align-items:center;justify-content:space-between}
+.howhead button{font:700 13px/1 var(--sans);color:var(--muted);background:none;border:0;padding:6px 0;cursor:pointer}
+.howhead button:hover{color:var(--ink)}
+.howbody{display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px;align-items:start}
+.howbody video{width:100%;aspect-ratio:1/2;border-radius:16px;border:1px solid var(--line);background:#000;display:block}
+.howsteps{list-style:none;counter-reset:how;display:flex;flex-direction:column;gap:14px;padding:0;margin:0}
+.howsteps li{counter-increment:how;display:grid;grid-template-columns:24px minmax(0,1fr);gap:10px;font-size:14px;line-height:1.45;color:var(--muted)}
+.howsteps li::before{content:counter(how);width:24px;height:24px;border-radius:50%;background:var(--ink);color:#09090b;font:700 12px/24px var(--sans);text-align:center}
+.howsteps b{color:var(--ink);font-weight:700}
+.howfine{font-size:13px;line-height:1.5;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;margin-top:2px}
+@media (max-width:520px){.howbody{grid-template-columns:1fr}.howbody video{width:62%;margin-inline:auto}}
+/* Countdown until launch. */
+.soon{align-items:center;text-align:center;padding:28px 16px 26px;gap:12px}
+.soonwhen{font:400 12px/1.4 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--gold)}
+.count{font:700 clamp(40px,12vw,60px)/1 var(--mono);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.soonnote{font-size:14px;line-height:1.5;color:var(--muted);max-width:34ch}
+main.pk{max-width:640px;border-top:0;padding-block:0 72px;gap:14px}
+main.pk>section{padding-top:0}
+.card{border:1px solid var(--line);background:var(--panel);border-radius:18px;padding:18px 16px;display:flex;flex-direction:column;gap:14px}
+
+.acct{flex-direction:row;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 16px;padding:14px 16px}
+.acct b{display:block;font-size:16px}
+.acct .tn{display:block;font:400 12px/1.4 var(--mono);color:var(--muted);margin-top:2px}
+.acct .tn button{font:inherit;color:var(--muted);background:none;border:0;padding:0;margin-left:6px;text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.left{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.left.none{color:var(--bad)}
+.pips{display:flex;gap:4px}
+.pips i{width:10px;height:10px;border-radius:50%;border:1px solid #3a3a42}
+.pips i.on{background:var(--gold);border-color:var(--gold)}
+
+.stephead{display:flex;gap:12px;align-items:flex-start}
+.num{flex:none;width:28px;height:28px;border-radius:50%;background:var(--ink);color:#09090b;font:700 14px/28px var(--sans);text-align:center}
+.stephead h2,.card>h2{font-size:21px;letter-spacing:-.01em;line-height:1.2}
+.stephead p{color:var(--muted);font-size:13px;margin-top:3px}
+.search{width:100%;font:inherit;font-size:16px;color:var(--ink);background:#141417 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%238a8a93' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='5'/%3E%3Cpath d='m11 11 3.5 3.5'/%3E%3C/svg%3E") no-repeat 14px 50%;border:1px solid #2a2a30;border-radius:12px;padding:12px 14px 12px 40px;-webkit-appearance:none;appearance:none}
+.search:focus{outline:none;border-color:#55555e}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin-inline:-16px;padding-inline:16px}
+.chips::-webkit-scrollbar{display:none}
+.chips .gap{flex:none;width:1px;background:var(--line);margin-inline:2px}
+.chip{flex:none;font:700 12px/1 var(--sans);padding:9px 13px;border-radius:999px;border:1px solid #2e2e34;background:none;color:var(--ink);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.chip[aria-pressed=true]{background:var(--ink);color:#09090b;border-color:var(--ink)}
+.pane{display:flex;flex-direction:column;gap:14px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:#141417;border:1px solid #232328}
+.seg button{font:700 13px/1.2 var(--sans);padding:11px 8px;border-radius:10px;border:0;background:none;color:var(--muted);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.seg button[aria-pressed=true]{background:var(--ink);color:#09090b}
+.seg small{font:400 11px/1 var(--mono);opacity:.7;margin-left:4px}
+.banner{font-size:14px;padding:12px 14px;border-radius:12px;background:rgba(255,143,143,.08);color:var(--bad)}
+
+.plist{display:flex;flex-direction:column;margin-inline:-8px}
+.plist li+li{border-top:1px solid var(--line)}
+.prow{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;padding:11px 8px;border:0;border-radius:12px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .12s}
+.prow:hover:not(:disabled){background:#141417}
+.prow:active:not(:disabled){background:#1a1a1f}
+.prow:disabled{cursor:default}
+.prow:disabled .face,.prow:disabled .pname,.prow:disabled .pmeta,.prow:disabled .pts{opacity:.38}
+.face{width:48px;height:48px;border-radius:50%;background:#17171b;overflow:hidden;display:block}
+.face img{width:100%;height:100%;object-fit:cover;object-position:50% 0;display:block}
+.face.none{display:grid;place-items:center;font:700 15px/1 var(--sans);color:var(--muted)}
+.pinfo{min-width:0;display:flex;flex-direction:column;align-items:flex-start}
+.pname{max-width:100%;font-weight:700;font-size:15px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pmeta{font:400 11.5px/1.5 var(--mono);color:var(--muted)}
+.pmeta em{font-style:normal;color:var(--bad)}
+.tag{display:inline-flex;align-items:center;gap:6px;margin-top:5px;font:700 11px/1 var(--sans);padding:5px 8px;border-radius:999px;background:#17171b;color:var(--muted);white-space:nowrap}
+.tag.on{color:var(--good);background:rgba(143,227,176,.09)}
+.tag.on::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.tag.wait{color:var(--gold);background:rgba(233,196,106,.09)}
+.pts{text-align:right;font-variant-numeric:tabular-nums}
+.pts b{display:block;font:700 19px/1 var(--sans);letter-spacing:-.01em}
+.pts small{display:block;font:400 10.5px/1.3 var(--mono);color:var(--muted);margin-top:4px}
+.more{align-self:center;font:700 13px/1 var(--sans);padding:12px 20px;border-radius:999px;border:1px solid #33343a;background:none;color:var(--ink);cursor:pointer}
+.empty{color:var(--muted);font-size:14px;padding:8px 0}
+
+.back{align-self:flex-start;font:700 13px/1 var(--sans);padding:9px 0;border:0;background:none;color:var(--muted);cursor:pointer}
+.back:hover{color:var(--ink)}
+.adding{border:1px solid rgba(233,196,106,.45);border-radius:14px;padding:4px;background:rgba(233,196,106,.04)}
+.adding .prow{cursor:default}
+.adding .label{display:block;font:400 11px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--gold);padding:10px 12px 0}
+.open{display:flex;align-items:center;gap:12px;width:100%;padding:14px 12px;border:1px dashed #33343a;border-radius:12px;background:none;color:var(--ink);font:700 14px/1.3 var(--sans);text-align:left;cursor:pointer;margin-bottom:6px}
+.open:hover{border-color:var(--muted)}
+
+.feed li{display:grid;grid-template-columns:74px 1fr;gap:12px;padding-block:11px;border-top:1px solid var(--line);font-size:14px;line-height:1.45}
+.feed li:first-child{border-top:0;padding-top:0}
+.feed time{font:400 11px/1.9 var(--mono);color:var(--muted)}
+.feed .lm{display:inline-block;font:700 10px/1 var(--sans);color:var(--gold);border:1px solid rgba(233,196,106,.35);border-radius:999px;padding:3px 6px;margin-left:6px;vertical-align:1px}
+.feed .who{font-weight:700}
+.feed .drop{color:var(--muted)}
+
+.gate p{color:var(--muted);font-size:15px}
+.retry{align-self:flex-start;font:700 13px/1 var(--sans);padding:12px 18px;border-radius:999px;border:1px solid #33343a;background:none;color:var(--ink);cursor:pointer}
+
+.skel{display:flex;flex-direction:column;gap:8px}
+.skel i{height:64px;border-radius:12px;background:linear-gradient(90deg,#111114 0%,#19191d 50%,#111114 100%);background-size:200% 100%;animation:sheen 1.3s linear infinite}
+@keyframes sheen{to{background-position:-200% 0}}
+
+.scrim{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.66);display:flex;align-items:flex-end;justify-content:center;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.sheet{width:100%;max-width:520px;max-height:100%;overflow:auto;background:#111114;border:1px solid #26262c;border-bottom:0;border-radius:22px 22px 0 0;padding:24px 20px calc(18px + env(safe-area-inset-bottom));animation:rise .24s cubic-bezier(.2,.8,.2,1)}
+@keyframes rise{from{transform:translateY(40px);opacity:0}}
+@media (min-width:640px){.scrim{align-items:center;padding:20px}.sheet{border-radius:22px;border-bottom:1px solid #26262c}}
+.sheet h2{font-size:22px}
+.swap{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.side{display:grid;grid-template-columns:28px 44px minmax(0,1fr);align-items:center;gap:12px;padding:12px;border-radius:14px;background:#18181c}
+.side .face{width:44px;height:44px}
+.side b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side small{display:block;font:400 11.5px/1.5 var(--mono);color:var(--muted)}
+.sign{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:700 17px/1 var(--sans)}
+.side.in .sign{background:rgba(143,227,176,.14);color:var(--good)}
+.side.out .sign{background:rgba(255,143,143,.12);color:var(--bad)}
+.side.sit .sign{background:rgba(233,196,106,.12);color:var(--gold);font-size:14px}
+.go{display:block;width:100%;margin-top:18px;font:700 16px/1 var(--sans);padding:18px;border-radius:14px;border:0;background:var(--ink);color:#09090b;cursor:pointer;text-align:center}
+.go:hover{background:#fff}
+.go[disabled]{opacity:.7;cursor:default}
+.go .spin{display:inline-block;width:14px;height:14px;margin-right:10px;vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:turn .7s linear infinite}
+@keyframes turn{to{transform:rotate(360deg)}}
+.cancel{display:block;width:100%;margin-top:6px;font:700 14px/1 var(--sans);padding:15px;border:0;background:none;color:var(--muted);cursor:pointer}
+.cancel:hover{color:var(--ink)}
+.fine{font-size:12px;line-height:1.5;color:var(--muted);text-align:center;margin-top:4px}
+.err{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(255,143,143,.08);color:var(--bad);font-size:14px}
+.done{text-align:center}
+.tick{width:64px;height:64px;border-radius:50%;background:rgba(143,227,176,.14);color:var(--good);display:grid;place-items:center;margin:2px auto 16px}
+.done p{color:var(--muted);margin-top:8px;font-size:15px}
+@media (prefers-reduced-motion:reduce){.skel i,.sheet,.go .spin{animation:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="mark" href="/">Fantasy Hoops</a>
+  <nav>
+    <a href="/recap.html">Weekly</a>
+    <a href="/#history">History</a>
+    <a href="/records.html">Records</a>
+    <a href="/teams.html">Teams</a>
+    <a href="/pickup.html">Pickups</a>
+    <a href="/gauntlet.html">Gauntlet</a>
+    <a href="/guide.html">Draft guide</a>
+    <a href="/draft.html">Draft board</a>
+  </nav>
+</header>
+
+<section class="hero small pkhero">
+  <p class="eyebrow" id="today">Today</p>
+  <h1>Pickups</h1>
+  <p class="lede">Grab a free agent or bring a player back from IR, even after the day's first game, as long as his own game hasn't tipped off. It goes straight onto your ESPN team.</p>
+  <button class="howbtn" id="howBtn" type="button" hidden>How it works</button>
+</section>
+
+<main class="pk">
+  <section class="card howto" id="howto" hidden>
+    <div class="howhead"><h2>How it works</h2><button id="howHide" type="button">Hide</button></div>
+    <div class="howbody">
+      <video id="howVideo" src="/pickup-howto.mp4" poster="/pickup-howto.jpg" muted loop playsinline preload="none" aria-label="Screen recording of a pickup: find a player, pick who to drop, pick who sits tonight, then confirm"></video>
+      <div>
+        <ol class="howsteps">
+          <li><span><b>Find your player.</b> Anyone whose game hasn't tipped off yet can be added, even after the day's first game.</span></li>
+          <li><span><b>Pick who you're dropping.</b> Anyone whose game has started is locked until tomorrow.</span></li>
+          <li><span><b>Pick who sits tonight.</b> ESPN won't let you put a late pickup in your lineup yourself, so the page does it for you.</span></li>
+          <li><span><b>Confirm.</b> He's on your ESPN team straight away.</span></li>
+        </ol>
+        <p class="howfine">Bringing someone back from IR works the same way: tap “Back from IR”. ESPN's rules still apply: 4 pickups a week, and players on waivers need a claim in the ESPN app.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card soon" id="soon" hidden>
+    <p class="soonwhen" id="soonWhen">Opening soon</p>
+    <div class="count" id="count"></div>
+    <p class="soonnote">Moves are switched off until then. In the meantime, have a look at how it works.</p>
+  </section>
+
+  <section class="card gate" id="gate" hidden>
+    <h2>Open your personal link</h2>
+    <p>Matt sent everyone in the league their own pickup link. Open it once on your phone and this page will remember you after that.</p>
+  </section>
+
+  <section class="card" id="oops" hidden>
+    <h2>Couldn't load from ESPN</h2>
+    <p class="empty" id="oopsText"></p>
+    <button class="retry" id="retry" type="button">Try again</button>
+  </section>
+
+  <section class="card acct" id="acct" hidden>
+    <div><b id="owner"></b><span class="tn"><span id="teamName"></span><button id="notMe" type="button">Not you?</button></span></div>
+    <div class="left" id="left"><span class="pips" id="pips"></span><span id="leftText"></span></div>
+  </section>
+
+  <section class="card" id="blocked" hidden>
+    <h2>Pickups are closed for your team</h2>
+    <p class="empty" id="blockedText"></p>
+  </section>
+
+  <section class="card" id="step1" hidden>
+    <div class="seg" id="modes" role="group" aria-label="What do you want to do?" hidden>
+      <button type="button" data-mode="add" aria-pressed="true">Add a free agent</button>
+      <button type="button" data-mode="ir" aria-pressed="false">Back from IR</button>
+    </div>
+    <div class="pane" id="addPane">
+      <div class="stephead"><span class="num">1</span><div><h2>Who do you want?</h2><p id="faNote"></p></div></div>
+      <p class="banner" id="limitBanner" hidden></p>
+      <input class="search" id="q" type="search" placeholder="Search free agents" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search free agents">
+      <div class="chips" id="pos" role="group" aria-label="Position"></div>
+      <div class="chips" role="group" aria-label="Show and sort">
+        <button class="chip" id="todayChip" type="button" aria-pressed="false">Still to play today</button>
+        <span class="gap"></span>
+        <button class="chip" type="button" data-sort="avg" aria-pressed="true">Season avg</button>
+        <button class="chip" type="button" data-sort="last7" aria-pressed="false">Last 7</button>
+      </div>
+      <ol class="plist" id="faList"></ol>
+      <p class="empty" id="faEmpty" hidden></p>
+      <button class="more" id="more" type="button" hidden>Show more</button>
+    </div>
+    <div class="pane" id="irPane" hidden>
+      <div class="stephead"><span class="num">1</span><div><h2>Who's coming back?</h2><p>Bring a player off IR any time before his own game tips off. It doesn't use one of your weekly pickups.</p></div></div>
+      <ol class="plist" id="irList"></ol>
+    </div>
+  </section>
+
+  <section class="card" id="step2" hidden>
+    <button class="back" id="back" type="button">&larr; Pick someone else</button>
+    <div class="adding"><span class="label" id="addingLabel">Adding</span><ol class="plist" id="addingRow"></ol></div>
+    <div class="stephead"><span class="num">2</span><div><h2>Who's making room?</h2><p>Lowest scorers first. Anyone whose game has started is locked until tomorrow.</p></div></div>
+    <button class="open" id="openSpot" type="button" hidden>Nobody, I have an open roster spot</button>
+    <ol class="plist" id="rosterList"></ol>
+  </section>
+
+  <section class="card" id="step3" hidden>
+    <button class="back" id="back3" type="button">&larr; Pick someone else to drop</button>
+    <div class="adding"><span class="label">Starting tonight</span><ol class="plist" id="sitRow"></ol></div>
+    <div class="stephead"><span class="num">3</span><div><h2>Who sits tonight?</h2><p id="sitNote"></p></div></div>
+    <button class="open" id="keepBench" type="button">Leave him on the bench tonight</button>
+    <ol class="plist" id="sitList"></ol>
+  </section>
+
+  <section class="card" id="loading">
+    <div class="skel"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  </section>
+
+  <section class="card" id="recent" hidden>
+    <h2>This week's pickups</h2>
+    <ol class="feed" id="feed"></ol>
+  </section>
+</main>
+
+<div class="scrim" id="scrim" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div id="confirm">
+      <h2 id="sheetTitle">Make this move?</h2>
+      <div class="swap" id="swap"></div>
+      <p class="err" id="err" role="alert" hidden></p>
+      <button class="go" id="go" type="button">Make the move</button>
+      <button class="cancel" id="cancel" type="button">Cancel</button>
+      <p class="fine">It goes through Matt's league manager account, so ESPN's log will show it as "By LM".</p>
+    </div>
+    <div class="done" id="done" hidden>
+      <div class="tick"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+      <h2 id="doneTitle"></h2>
+      <p id="doneText"></p>
+      <a class="go" id="espnLink" href="#" target="_blank" rel="noopener">Open my ESPN team</a>
+      <button class="cancel" id="doneBtn" type="button">Done</button>
+    </div>
+  </div>
+</div>
+
+<footer><span>fantasyhoops.fun</span><a href="/teams.html">Teams</a></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+// The personal link carries the key after a #, which never reaches the server's logs. It is kept
+// on this device so the plain page works from then on.
+const STORE = "fh-pickup-key";
+let memoryKey = null;
+const key = {
+  get() { try { return localStorage.getItem(STORE) || memoryKey; } catch { return memoryKey; } },
+  set(v) { memoryKey = v; try { localStorage.setItem(STORE, v); } catch {} },
+  clear() { memoryKey = null; try { localStorage.removeItem(STORE); } catch {} },
+};
+const fromLink = location.hash.match(/k=([\w-]+)/);
+if (fromLink) { key.set(fromLink[1]); history.replaceState(null, "", location.pathname + location.search); }
+
+// mode "add" picks a free agent; "ir" brings back one of your own IR players. Either way `add` is
+// the player coming in and `drop` the one leaving (null when there's an open spot).
+const state = { data: null, mode: "add", q: "", pos: "All", today: false, sort: "avg", shown: 40, add: null, drop: undefined, sit: undefined, step: 2, busy: false, first: true };
+const POSITIONS = ["All", "PG", "SG", "SF", "PF", "C"];
+
+const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const fmt = n => n == null || n === 0 ? "–" : n.toFixed(1);
+const clock = ms => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const canPlay = p => p.game && !p.locked;
+const left = () => state.data.limit > 0 ? Math.max(state.data.limit - state.data.used, 0) : Infinity;
+
+$("today").textContent = new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+
+function show(...ids) {
+  ["soon", "gate", "oops", "acct", "blocked", "step1", "step2", "step3", "loading", "recent"].forEach(id => $(id).hidden = !ids.includes(id));
+}
+
+async function api(method, body) {
+  const headers = { "X-Pickup-Key": key.get() || "" };
+  if (body) headers["Content-Type"] = "application/json";
+  const r = await fetch("/api/pickup", { method, headers, body: body ? JSON.stringify(body) : undefined, cache: "no-store" });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { key.clear(); closeSheet(); if (d.opensAt) { countdown(d); show("soon", "gate"); } else show("gate"); }
+  if (!r.ok) throw Object.assign(new Error(d.error || "Something went wrong. Try again."), { status: r.status });
+  return d;
+}
+
+// Counts down to launch on the server's clock, then reloads the page's data, which opens it up.
+let ticking = null;
+function countdown(d) {
+  const at = d.opensAt, offset = (d.now || Date.now()) - Date.now();
+  $("soonWhen").textContent = "Opens " + new Date(at).toLocaleString("en-US", { weekday: "long", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET";
+  clearInterval(ticking);
+  const step = () => {
+    const ms = at - (Date.now() + offset);
+    if (ms <= 0) { clearInterval(ticking); $("count").textContent = "Opening…"; setTimeout(() => load({ quiet: true }), 1500); return; }
+    const t = Math.ceil(ms / 1000), pad = n => String(n).padStart(2, "0");
+    $("count").textContent = `${Math.floor(t / 3600)}h ${pad(Math.floor(t % 3600 / 60))}m ${pad(t % 60)}s`;
+  };
+  step();
+  ticking = setInterval(step, 1000);
+}
+
+async function load({ quiet } = {}) {
+  if (!quiet) show("loading");
+  try {
+    state.data = await api("GET");
+    if (state.first) { state.today = state.data.available.some(canPlay); state.first = false; }
+    render();
+  } catch (e) {
+    if (e.status === 401) return;
+    if (quiet) return;
+    $("oopsText").textContent = e.message;
+    show("oops");
+  }
+}
+
+function face(p, size) {
+  const f = el("span", "face");
+  const img = new Image();
+  img.alt = "";
+  img.loading = "lazy";
+  img.src = `https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/${p.id}.png&w=${size * 2}&h=${Math.round(size * 1.46)}`;
+  img.onerror = () => { img.remove(); f.classList.add("none"); f.textContent = p.name.split(" ").map(w => w[0]).slice(0, 2).join(""); };
+  f.append(img);
+  return f;
+}
+
+function tag(p, note) {
+  if (note) return el("span", "tag", note);
+  if (p.waivers) return el("span", "tag wait", typeof p.waivers === "number" ? `On waivers until ${new Date(p.waivers).toLocaleDateString([], { weekday: "short" })}` : "On waivers");
+  if (p.locked) return el("span", "tag", "Game started");
+  if (p.game) return el("span", "tag on",`${clock(p.game.at)} ${p.game.home ? "vs" : "@"} ${p.game.opp}`);
+  return el("span", "tag", "No game today");
+}
+
+function row(p, { disabled, note, slot, onPick, stat = "avg" } = {}) {
+  const li = el("li"), b = el("button", "prow");
+  b.type = "button";
+  b.disabled = !!disabled;
+  const info = el("span", "pinfo"), meta = el("span", "pmeta", [slot, p.pos.join("/"), p.team].filter(Boolean).join(" · "));
+  if (p.injury) meta.append(" · ", el("em", null, p.injury));
+  info.append(el("span", "pname", p.name), meta, tag(p, note));
+  const pts = el("span", "pts");
+  pts.append(el("b", null, fmt(stat === "last7" ? p.last7 : p.avg)), el("small", null, stat === "last7" ? "last 7" : "avg"), el("small", null, stat === "last7" ? `avg ${fmt(p.avg)}` : `L7 ${fmt(p.last7)}`));
+  b.append(face(p, 48), info, pts);
+  if (onPick && !disabled) b.onclick = () => onPick(p);
+  li.append(b);
+  return li;
+}
+
+function renderAccount() {
+  const d = state.data;
+  $("owner").textContent = d.owner;
+  $("teamName").textContent = d.team;
+  const n = left();
+  $("pips").replaceChildren(...(d.limit > 0 ? Array.from({ length: d.limit }, (_, i) => el("i", i < n ? "on" : "")) : []));
+  $("leftText").textContent = d.limit <= 0 ? "No weekly pickup limit" : n === 0 ? "No pickups left this week" : `${n} pickup${n === 1 ? "" : "s"} left this week`;
+  $("left").classList.toggle("none", n === 0);
+  $("left").hidden = !!d.blocked;
+}
+
+function freeAgents() {
+  const q = norm(state.q.trim());
+  const list = state.data.available.filter(p =>
+    (!q || norm(p.name).includes(q)) &&
+    (state.pos === "All" || p.pos.includes(state.pos)) &&
+    (q || !state.today || canPlay(p)));
+  const blocked = p => (p.locked || p.waivers) ? 1 : 0;
+  return list.sort((a, b) => blocked(a) - blocked(b) || (b[state.sort] ?? -1) - (a[state.sort] ?? -1));
+}
+
+function renderStep1() {
+  const ir = state.data.roster.filter(p => p.slot === "IR");
+  if (!ir.length) state.mode = "add";
+  $("modes").hidden = !ir.length;
+  document.querySelector("[data-mode=ir]").replaceChildren("Back from IR", el("small", null, String(ir.length)));
+  document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+  $("addPane").hidden = state.mode !== "add";
+  $("irPane").hidden = state.mode !== "ir";
+  if (state.mode === "ir") $("irList").replaceChildren(...ir.map(p => row(p, { slot: "IR", disabled: p.locked, onPick: pickAdd })));
+  else renderAdd();
+}
+
+function renderAdd() {
+  const out = left() === 0;
+  $("limitBanner").hidden = !out;
+  if (out) $("limitBanner").textContent = `You've used all ${state.data.limit} pickups this week. They reset when next week's matchup starts.`;
+  $("pos").replaceChildren(...POSITIONS.map(p => {
+    const c = el("button", "chip", p);
+    c.type = "button";
+    c.setAttribute("aria-pressed", String(state.pos === p));
+    c.onclick = () => { state.pos = p; state.shown = 40; renderAdd(); };
+    return c;
+  }));
+  $("todayChip").setAttribute("aria-pressed", String(state.today));
+  document.querySelectorAll("[data-sort]").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.sort === state.sort)));
+  const list = freeAgents();
+  $("faNote").textContent = `${list.length} free agent${list.length === 1 ? "" : "s"}${state.q.trim() ? "" : state.today ? " still to play today" : ""} · ${state.sort === "avg" ? "best this season first" : "hottest last 7 days first"}`;
+  $("faList").replaceChildren(...list.slice(0, state.shown).map(p => row(p, {
+    disabled: out || p.locked || p.waivers,
+    stat: state.sort,
+    onPick: pickAdd,
+  })));
+  $("faEmpty").hidden = list.length > 0;
+  $("faEmpty").textContent = state.today && !state.q.trim() ? "Nobody left to play today at that position. Turn off “Still to play today” to see everyone." : "Nobody matches that. Try another name.";
+  $("more").hidden = list.length <= state.shown;
+}
+
+function renderStep2() {
+  const d = state.data, a = state.add, fromIR = state.mode === "ir";
+  $("addingLabel").textContent = fromIR ? "Back from IR" : "Adding";
+  $("addingRow").replaceChildren(row(a, fromIR ? { slot: "IR" } : {}));
+  $("openSpot").hidden = !d.open;
+  // On a full roster, dropping someone from injured reserve frees no spot for the new player,
+  // and someone coming off IR can only replace a player from the lineup or bench.
+  const irOnly = p => p.slot === "IR" && !d.open;
+  const free = p => !p.locked && p.droppable && !irOnly(p);
+  const roster = d.roster.filter(p => !fromIR || p.slot !== "IR").sort((x, y) => free(y) - free(x) || (x.avg ?? 0) - (y.avg ?? 0));
+  $("rosterList").replaceChildren(...roster.map(p => row(p, {
+    slot: p.slot,
+    disabled: !free(p),
+    note: p.locked ? null : !p.droppable ? "Can't be dropped" : irOnly(p) ? "On IR, frees no spot" : null,
+    onPick: pickDrop,
+  })));
+}
+
+// ESPN won't let a manager move someone into the lineup on the day he's picked up late, so the
+// page asks which starter he replaces tonight. Not needed when he has no game left today, when he
+// takes the spot of a starter being dropped, or when there's an empty starting spot he can play.
+const isStarter = p => p && p.slot && p.slot !== "Bench" && p.slot !== "IR";
+function sitters() {
+  const a = state.add, d = state.drop;
+  const rank = p => !p.game ? 0 : p.injury === "Out" ? 1 : 2;
+  return state.data.roster
+    .filter(p => isStarter(p) && !p.locked && p.id !== d?.id && a.can.includes(p.slot))
+    .sort((x, y) => rank(x) - rank(y) || (x.avg ?? 0) - (y.avg ?? 0));
+}
+function needsSit() {
+  const a = state.add, d = state.drop;
+  if (!canPlay(a) || isStarter(d)) return false;
+  if (state.data.emptyStarts.some(s => a.can.includes(s))) return false;
+  return sitters().length > 0;
+}
+
+function renderStep3() {
+  const a = state.add;
+  $("sitRow").replaceChildren(row(a));
+  $("sitNote").textContent = `ESPN won't let you move ${a.name} into your lineup yourself today, so pick who he replaces. Players with no game today are first. Whoever sits stays on your bench after tonight until you change it in ESPN.`;
+  $("sitList").replaceChildren(...sitters().map(p => row(p, {
+    slot: p.slot,
+    note: p.game && p.injury === "Out" ? "Out tonight" : null,
+    onPick: pickSit,
+  })));
+}
+
+function renderFeed() {
+  const items = state.data.recent;
+  $("feed").replaceChildren(...items.map(m => {
+    const li = el("li"), when = new Date(m.at), today = when.toDateString() === new Date().toDateString();
+    const t = el("time", null, today ? clock(m.at) : `${when.toLocaleDateString([], { weekday: "short" })} ${clock(m.at)}`);
+    const text = el("span");
+    text.append(el("span", "who", m.owner), ` added ${m.added.join(" and ") || "a player"}`);
+    if (m.dropped.length) text.append(el("span", "drop", `, dropped ${m.dropped.join(" and ")}`));
+    if (m.late) text.append(el("span", "lm", "via LM"));
+    li.append(t, text);
+    return li;
+  }));
+}
+
+function render() {
+  renderAccount();
+  renderFeed();
+  const feed = state.data.recent.length ? ["recent"] : [];
+  if (state.data.opensAt) { countdown(state.data); show("acct", "soon", ...feed); }
+  else if (state.data.blocked) { $("blockedText").textContent = state.data.blocked; show("acct", "blocked", ...feed); }
+  else if (state.add && state.step === 3) { renderStep3(); show("acct", "step3"); }
+  else if (state.add) { renderStep2(); show("acct", "step2"); }
+  else { renderStep1(); show("acct", "step1", ...(state.data.recent.length ? ["recent"] : [])); }
+}
+
+function pickAdd(p) {
+  state.add = p;
+  state.step = 2;
+  render();
+  window.scrollTo({ top: $("acct").offsetTop - 12, behavior: "smooth" });
+}
+function pickDrop(p) {
+  state.drop = p;
+  state.sit = undefined;
+  if (needsSit()) { state.step = 3; render(); window.scrollTo({ top: $("acct").offsetTop - 12, behavior: "smooth" }); }
+  else openSheet();
+}
+function pickSit(p) { state.sit = p; openSheet(); }
+
+function side(p, kind, note) {
+  const s = el("div", "side " + kind), text = el("span");
+  text.append(el("b", null, p.name), el("small", null, [note, p.pos.join("/"), p.team, kind === "in" && p.game ? `${clock(p.game.at)} ${p.game.home ? "vs" : "@"} ${p.game.opp}` : null].filter(Boolean).join(" · ")));
+  s.append(el("span", "sign", kind === "in" ? "+" : kind === "sit" ? "↓" : "−"), face(p, 44), text);
+  return s;
+}
+
+function openSheet() {
+  const fromIR = state.mode === "ir";
+  $("sheetTitle").textContent = fromIR ? "Bring him back?" : "Make this move?";
+  $("swap").replaceChildren(
+    side(state.add, "in", [fromIR ? "Off IR" : null, state.sit ? `Starts at ${state.sit.slot}` : null].filter(Boolean).join(" · ")),
+    ...(state.drop ? [side(state.drop, "out")] : []),
+    ...(state.sit ? [side(state.sit, "sit", "To the bench")] : []));
+  $("err").hidden = true;
+  $("confirm").hidden = false;
+  $("done").hidden = true;
+  setBusy(false);
+  $("scrim").hidden = false;
+  document.body.style.overflow = "hidden";
+  $("go").focus();
+}
+function closeSheet() {
+  if (state.busy) return;
+  $("scrim").hidden = true;
+  document.body.style.overflow = "";
+}
+function setBusy(on) {
+  state.busy = on;
+  $("go").disabled = on;
+  $("cancel").disabled = on;
+  $("go").replaceChildren(...(on ? [el("span", "spin"), "Making the move…"] : ["Make the move"]));
+}
+
+async function makeMove() {
+  setBusy(true);
+  try {
+    const fromIR = state.mode === "ir", drop = state.drop ? state.drop.id : null;
+    const sit = state.sit ? state.sit.id : null;
+    const r = await api("POST", fromIR ? { activate: state.add.id, drop, sit } : { add: state.add.id, drop, sit });
+    const p = fromIR ? r.back : r.added, starting = isStarter(p);
+    const gone = r.dropped ? `, and ${r.dropped} is gone` : "";
+    const sat = r.sat ? ` ${r.sat} moves to your bench, and stays there after tonight until you change it in ESPN.` : "";
+    $("doneTitle").textContent = fromIR ? `${p.name} is back` : `${p.name} is yours`;
+    $("doneText").textContent = !p.game
+      ? `He doesn't play today. He's ${starting ? `in your ${p.slot} spot` : "on your bench"}${gone}.`
+      : starting
+        ? `He's in your ${p.slot} spot for tonight's game${gone}.${sat}`
+        : r.benched
+          ? `He's on your bench${gone}. ESPN wouldn't move him into your lineup, so tell Matt if you want him starting tonight.`
+          : `He's on your bench for tonight${gone}. You can put him in your lineup from tomorrow.`;
+    if (r.realigned) $("doneText").textContent += " You'd already changed tomorrow's lineup in the ESPN app, so it was reset to match today. Check it before tomorrow's games.";
+    $("espnLink").href = state.data.espn;
+    setBusy(false);
+    $("confirm").hidden = true;
+    $("done").hidden = false;
+    $("doneBtn").focus();
+  } catch (e) {
+    setBusy(false);
+    if (e.status === 401) return;
+    $("err").textContent = e.message;
+    $("err").hidden = false;
+    load({ quiet: true });
+  }
+}
+
+function finish() {
+  closeSheet();
+  state.add = null;
+  state.drop = undefined;
+  state.sit = undefined;
+  state.step = 2;
+  state.q = "";
+  $("q").value = "";
+  window.scrollTo({ top: 0 });
+  load();
+}
+
+$("q").addEventListener("input", e => { state.q = e.target.value; state.shown = 40; renderAdd(); });
+$("todayChip").onclick = () => { state.today = !state.today; state.shown = 40; renderAdd(); };
+document.querySelectorAll("[data-sort]").forEach(c => c.onclick = () => { state.sort = c.dataset.sort; state.shown = 40; renderAdd(); });
+document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => { state.mode = b.dataset.mode; renderStep1(); });
+$("more").onclick = () => { state.shown += 40; renderAdd(); };
+$("back").onclick = () => { state.add = null; render(); };
+$("back3").onclick = () => { state.step = 2; state.drop = undefined; render(); };
+$("keepBench").onclick = () => { state.sit = null; openSheet(); };
+$("openSpot").onclick = () => pickDrop(null);
+$("go").onclick = makeMove;
+$("cancel").onclick = closeSheet;
+$("doneBtn").onclick = finish;
+$("scrim").addEventListener("click", e => { if (e.target === $("scrim") && $("done").hidden) closeSheet(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("scrim").hidden) $("done").hidden ? closeSheet() : finish(); });
+$("retry").onclick = () => load();
+$("notMe").onclick = () => { key.clear(); state.data = null; show("gate"); };
+
+// Open the first time someone visits, a button after that.
+function howto(open) {
+  const v = $("howVideo");
+  $("howto").hidden = !open;
+  $("howBtn").hidden = open;
+  if (!open) return v.pause();
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { v.controls = true; return; }
+  v.currentTime = 0;
+  v.play().catch(() => { v.controls = true; });
+}
+let seenHowto = false;
+try { seenHowto = localStorage.getItem("fh-pickup-howto") === "1"; localStorage.setItem("fh-pickup-howto", "1"); } catch {}
+howto(!seenHowto);
+$("howBtn").onclick = () => { howto(true); $("howto").scrollIntoView({ behavior: "smooth", block: "start" }); };
+$("howHide").onclick = () => howto(false);
+
+load();
+</script>
+</body>
+</html>
