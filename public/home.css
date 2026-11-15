@@ -201,9 +201,41 @@ footer{display:flex;justify-content:space-between;gap:16px;border-top:1px solid 
 }
 @media (max-width:480px){
   .top{flex-wrap:wrap}
+  .top nav a{white-space:nowrap}
 }
 @media (max-width:420px){
   .top nav{gap:14px}
   th,td{padding-left:10px}
 }
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* Gauntlet page: every team's rank by season points, day by day, and the cushion over last place. */
+.race-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:-8px}
+.race-bar p{font:400 12px/1 var(--mono);letter-spacing:.04em;color:var(--muted);font-variant-numeric:tabular-nums}
+.race svg{display:block;overflow:visible}
+.race .rank,.race .axis text{font:400 11px var(--mono);fill:var(--muted)}
+.race .danger{fill:rgba(255,143,143,.07);stroke:rgba(255,143,143,.22)}
+.race .cutline{stroke:var(--bad);stroke-dasharray:3 4;opacity:.6}
+.race .cutlabel,.race .outtag{font:400 10px var(--mono);fill:var(--bad)}
+.race .trail{fill:none;stroke:#3a3a42;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.race .trail.mine{stroke:var(--gold);stroke-width:3}
+.race .head{cursor:pointer;outline:none}
+.race .plate{fill:var(--panel)}
+.race .initial{font:700 11px var(--sans);fill:var(--muted);text-anchor:middle}
+.race .ring{fill:none;stroke:#4a4a52;stroke-width:1.5}
+.race .head.last .ring{stroke:var(--bad);stroke-width:2}
+.race .head.mine .ring,.race .head:focus-visible .ring{stroke:var(--gold);stroke-width:2}
+.race .name{font:700 11px var(--sans);fill:var(--ink);text-anchor:middle;paint-order:stroke;stroke:var(--bg);stroke-width:3px;stroke-linejoin:round}
+.race .head.mine .name{fill:var(--gold)}
+.race .head.gone{opacity:.35}
+.cushion th:nth-child(2),.cushion td.team{text-align:left}
+.cushion td.team{white-space:normal}
+.cushion tr{cursor:pointer}
+.cushion td.team>div{display:flex;align-items:center;gap:12px}
+.cushion img{width:30px;height:30px;border-radius:50%;object-fit:cover;background:var(--panel)}
+.cushion b{display:block;font-size:15px}
+.cushion small{display:block;font:400 11px/1.3 var(--mono);color:var(--muted)}
+.cushion .gap{font-size:15px}
+.cushion tr.mine b{color:var(--gold)}
+.cushion tr.out{opacity:.45}
+@media (max-width:600px){.race .name{font-size:9.5px}}
