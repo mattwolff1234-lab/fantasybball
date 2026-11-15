@@ -38,7 +38,7 @@ const EMAILS = {
   "a17fefb56e96f2110816ea9258c33d0746e03187f6dd662d4e0b8be5f83b321c": 7,
   "c359e01da55aa1914bd837cb79f505a0a26d01ed71b2e3a76fe02cabf2082ca7": 5,
 };
-const SITE = "https://fantasyhoops.fun";
+const SITE = "https://www.fantasyhoops.fun";
 const LINK_MS = 30 * 60 * 1000, SEASON_END = Date.parse("2027-06-01T00:00:00Z");
 const secret = () => process.env.RESEND_API_KEY && createHash("sha256").update("fh-pickup|" + process.env.RESEND_API_KEY).digest();
 const sign = (use, teamId, exp) => createHmac("sha256", secret()).update(`${use}.${teamId}.${exp}`).digest("base64url");
