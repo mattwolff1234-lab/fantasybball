@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { SEASON, POS, NBA, BASE, connected, teamsOf } from "../lib/espn.js";
 
 // Late pickups and IR returns. ESPN locks every team's adds and drops at the day's first tip-off, and that
@@ -20,7 +20,65 @@ const KEYS = {
   "593fa16b20305e2d86bb6beda6fc5047dd1c40ee7b3afca38656ad1ed3aaca52": 10,
   "9cf9d463b9229c702882f1ced708ce16ba534b412f2ab25ea680e106dcbe5373": 11,
 };
-const teamFor = key => KEYS[createHash("sha256").update(String(key || "")).digest("hex")];
+const sha = s => createHash("sha256").update(s).digest("hex");
+const teamFor = key => KEYS[sha(String(key || ""))] || signedTeam(key, "session");
+
+// Or a manager signs in by email: the site emails a link that works for 30 minutes, and opening it
+// signs that phone in for the season. Only the SHA-256 of each lowercased address is kept here.
+// The signing secret comes from the Resend key, so replacing that key signs everyone out.
+const EMAILS = {
+  "71d7dcf98a975944d121be0511012bb249b4ea4cc06c342696e4494e063cb55b": 1,
+  "0e2ee94db3a6b49628614d19617ae51bd92c421d13cf31e28b206550166cbc6c": 2,
+  "daaf3dc95449d72e17d499f7778ad8c5ceab65f3d91280a28eea4a775c40eb7a": 3,
+  "b771b0a184c4e27170302eda40a4b4f9ef6c7c0a3214f0c32638b41ef23bcf52": 6,
+  "e8a5e1ba7c330bb604bd36575f5b2debbc625be19a2a5d115d096866b8b8e359": 8,
+  "d88237bfacda1a4de37d3c5da849ef5f99eb265362734975df02982d2cae0350": 9,
+  "11754e885786977e9cdf7300182c75dd9a51ce1bfc9ea27cbdbffacd6507d805": 10,
+  "30c5a7cca391ef3faf7564b27eeabb93c63c6e95069e3b1042bfa466fd25ca72": 11,
+  "a17fefb56e96f2110816ea9258c33d0746e03187f6dd662d4e0b8be5f83b321c": 7,
+  "c359e01da55aa1914bd837cb79f505a0a26d01ed71b2e3a76fe02cabf2082ca7": 5,
+};
+const SITE = "https://fantasyhoops.fun";
+const LINK_MS = 30 * 60 * 1000, SEASON_END = Date.parse("2027-06-01T00:00:00Z");
+const secret = () => process.env.RESEND_API_KEY && createHash("sha256").update("fh-pickup|" + process.env.RESEND_API_KEY).digest();
+const sign = (use, teamId, exp) => createHmac("sha256", secret()).update(`${use}.${teamId}.${exp}`).digest("base64url");
+const token = (use, teamId, exp) => `${teamId}.${exp}.${sign(use, teamId, exp)}`;
+function signedTeam(t, use) {
+  const m = String(t || "").match(/^(\d+)\.(\d+)\.([\w-]+)$/);
+  if (!m || !secret() || Date.now() > Number(m[2]) || !Object.values(KEYS).includes(Number(m[1]))) return;
+  const want = Buffer.from(sign(use, m[1], m[2])), got = Buffer.from(m[3]);
+  if (want.length === got.length && timingSafeEqual(want, got)) return Number(m[1]);
+}
+
+async function emailLink(res, address) {
+  if (!secret()) return fail(res, 503, "Email sign-in isn't switched on yet. Use the personal link Matt sent you.");
+  const email = String(address).trim().toLowerCase();
+  const teamId = EMAILS[sha(email)];
+  if (!teamId) return fail(res, 404, "That email isn't on Matt's list. Use the address you gave him, or ask him to add this one.");
+  const link = `${SITE}/pickup.html#t=${token("link", teamId, Date.now() + LINK_MS)}`;
+  const r = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: "Fantasy Hoops <pickups@fantasyhoops.fun>",
+      to: email,
+      subject: "Your Pickups sign-in link",
+      text: `Open this link on the phone you'll make moves from, and it will sign you in to Pickups:\n\n${link}\n\nIt works for 30 minutes. If you didn't ask for it, ignore this email.`,
+      html: `<p>Tap the button on the phone you'll make moves from, and it will sign you in to Pickups.</p><p><a href="${link}" style="display:inline-block;background:#111;color:#fff;padding:14px 22px;border-radius:10px;text-decoration:none;font-weight:700">Sign in to Pickups</a></p><p style="color:#666;font-size:13px">It works for 30 minutes. If you didn't ask for it, ignore this email.</p>`,
+    }),
+  });
+  if (!r.ok) {
+    console.error("Resend refused the sign-in email", r.status, await r.text());
+    return fail(res, 502, "The email couldn't be sent. Try again, or tell Matt.");
+  }
+  res.status(200).json({ sent: true });
+}
+
+function signIn(res, link) {
+  const teamId = signedTeam(link, "link");
+  if (!teamId) return fail(res, 401, "That sign-in link has run out (they last 30 minutes). Ask for a new one below.");
+  res.status(200).json({ key: token("session", teamId, SEASON_END) });
+}
 
 const INJURY = { OUT: "Out", DAY_TO_DAY: "Day to day", SUSPENSION: "Suspended", INJURY_RESERVE: "Injured reserve" };
 const SLOT = { 0: "PG", 1: "SG", 2: "SF", 3: "PF", 4: "C", 5: "G", 6: "F", 11: "UTIL", 12: "Bench", 13: "IR" };
@@ -210,6 +268,11 @@ const opensAt = () => Date.now() < OPENS_AT ? OPENS_AT : null;
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (!connected()) return fail(res, 503, "The site is not connected to ESPN yet.");
+  if (req.method === "POST") {
+    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+    if (body.email != null) return emailLink(res, body.email).catch(() => fail(res, 502, "The email couldn't be sent. Try again in a minute."));
+    if (body.link) return signIn(res, body.link);
+  }
   const teamId = teamFor(req.headers["x-pickup-key"]);
   if (!teamId) return res.status(401).json({ error: "This link isn't signed in. Use the personal link Matt sent you.", opensAt: opensAt(), now: Date.now() });
   if (req.method === "POST" && opensAt()) return fail(res, 403, "Pickups aren't open yet. They open Monday at 9 AM Eastern.");

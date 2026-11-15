@@ -110,6 +110,13 @@ main.pk>section{padding-top:0}
 .feed .drop{color:var(--muted)}
 
 .gate p{color:var(--muted);font-size:15px}
+.signin{display:flex;flex-direction:column;gap:10px}
+.signin .go{margin-top:0}
+.field{width:100%;font:inherit;font-size:16px;color:var(--ink);background:#141417;border:1px solid #2a2a30;border-radius:12px;padding:14px;-webkit-appearance:none;appearance:none}
+.field:focus{outline:none;border-color:#55555e}
+.gate .sent{color:var(--good);font-size:14px;line-height:1.5}
+.gate .sent.bad{color:var(--bad)}
+.gate .alt{font-size:13px}
 .retry{align-self:flex-start;font:700 13px/1 var(--sans);padding:12px 18px;border-radius:999px;border:1px solid #33343a;background:none;color:var(--ink);cursor:pointer}
 
 .skel{display:flex;flex-direction:column;gap:8px}
@@ -192,8 +199,14 @@ main.pk>section{padding-top:0}
   </section>
 
   <section class="card gate" id="gate" hidden>
-    <h2>Open your personal link</h2>
-    <p>Matt sent everyone in the league their own pickup link. Open it once on your phone and this page will remember you after that.</p>
+    <h2>Sign in</h2>
+    <p>Type the email address Matt has for you and we'll email you a sign-in link. Open it on the phone you'll make moves from, and this page will remember you after that.</p>
+    <form class="signin" id="signin">
+      <input class="field" id="email" type="email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" aria-label="Your email address" required>
+      <button class="go" id="sendLink" type="submit">Email me a sign-in link</button>
+    </form>
+    <p class="sent" id="sent" role="status" hidden></p>
+    <p class="alt">Got a personal link from Matt? That works too.</p>
   </section>
 
   <section class="card" id="oops" hidden>
@@ -301,6 +314,9 @@ const key = {
 };
 const fromLink = location.hash.match(/k=([\w-]+)/);
 if (fromLink) { key.set(fromLink[1]); history.replaceState(null, "", location.pathname + location.search); }
+// A sign-in email's link carries a 30-minute pass after #t=, which the server swaps for a season-long key.
+const fromEmail = location.hash.match(/t=([\w.-]+)/);
+if (fromEmail) history.replaceState(null, "", location.pathname + location.search);
 
 // mode "add" picks a free agent; "ir" brings back one of your own IR players. Either way `add` is
 // the player coming in and `drop` the one leaving (null when there's an open spot).
@@ -632,6 +648,27 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("scrim"
 $("retry").onclick = () => load();
 $("notMe").onclick = () => { key.clear(); state.data = null; show("gate"); };
 
+// Sign-in requests skip api(): a refused one must not sign out a phone that's already signed in.
+const post = body => fetch("/api/pickup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), cache: "no-store" })
+  .then(async r => ({ ok: r.ok, d: await r.json().catch(() => ({})) }));
+const note = (text, bad) => { $("sent").textContent = text; $("sent").classList.toggle("bad", bad); $("sent").hidden = false; };
+$("signin").onsubmit = async e => {
+  e.preventDefault();
+  const email = $("email").value.trim(), b = $("sendLink");
+  b.disabled = true;
+  b.textContent = "Sending…";
+  const { ok, d } = await post({ email }).catch(() => ({ d: { error: "Couldn't reach the site. Check your connection and try again." } }));
+  note(ok ? `Sent. Check ${email} for an email from Fantasy Hoops and tap the link in it. It works for 30 minutes. Not there after a minute? Look in spam.` : d.error || "Something went wrong. Try again.", !ok);
+  b.disabled = false;
+  b.textContent = ok ? "Send another link" : "Email me a sign-in link";
+};
+async function signInFromEmail() {
+  show("loading");
+  const { ok, d } = await post({ link: fromEmail[1] }).catch(() => ({ d: { error: "Couldn't reach the site to sign you in. Open the link in the email again." } }));
+  if (ok) key.set(d.key);
+  else note(d.error || "Something went wrong. Open the link in the email again.", true);
+}
+
 // Open the first time someone visits, a button after that.
 function howto(open) {
   const v = $("howVideo");
@@ -648,7 +685,8 @@ howto(!seenHowto);
 $("howBtn").onclick = () => { howto(true); $("howto").scrollIntoView({ behavior: "smooth", block: "start" }); };
 $("howHide").onclick = () => howto(false);
 
-load();
+if (fromEmail) signInFromEmail().then(() => load());
+else load();
 </script>
 </body>
 </html>
