@@ -1,0 +1,4 @@
+{
+  "crons": [{ "path": "/api/newsletter", "schedule": "0 15 * * *" }],
+  "functions": { "api/newsletter.js": { "maxDuration": 300 } }
+}
