@@ -7,6 +7,9 @@
 <meta name="description" content="Pick up a free agent any time before his game tips off, straight onto your ESPN team.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#070708">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="/home.css">
 <style>
 /* Pickups: one narrow column of cards. Step 1 picks the free agent, step 2 picks who leaves, and a sheet confirms. */
@@ -143,17 +146,18 @@ main.pk>section{padding-top:0}
 </style>
 </head>
 <body>
+<div class="ticker" id="ticker" hidden></div>
+<script src="/site.js"></script>
 <header class="top">
-  <a class="mark" href="/">Fantasy Hoops</a>
+  <a class="mark" href="/">Fantasy<span>Hoops</span></a>
   <nav>
+    <a href="/">Hub</a>
     <a href="/recap.html">Weekly</a>
-    <a href="/#history">History</a>
-    <a href="/records.html">Records</a>
-    <a href="/teams.html">Teams</a>
-    <a href="/pickup.html">Pickups</a>
+    <a href="/rankings.html">Rankings</a>
     <a href="/gauntlet.html">Gauntlet</a>
-    <a href="/guide.html">Draft guide</a>
-    <a href="/draft.html">Draft board</a>
+    <a href="/teams.html">Teams</a>
+    <a href="/pickup.html" aria-current="page">Pickups</a>
+    <a href="/records.html">Records</a>
   </nav>
 </header>
 
@@ -280,7 +284,7 @@ main.pk>section{padding-top:0}
   </div>
 </div>
 
-<footer><span>fantasyhoops.fun</span><a href="/teams.html">Teams</a></footer>
+<footer><span>fantasyhoops.fun · 2026-27</span><nav aria-label="Archive"><span>Archive</span><a href="/guide.html">Draft guide</a><a href="/draft.html">Draft board</a><a href="/results.html">Draft results</a><a href="/schedule.html">Draft scheduling</a></nav></footer>
 
 <script>
 const $ = id => document.getElementById(id);

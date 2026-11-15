@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rankings · Fantasy Hoops</title>
+<meta name="description" content="Every player in our league ranked for the rest of the season: how he's playing now, blended with his preseason projection.">
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/home.css">
+</head>
+<body>
+<div class="ticker" id="ticker" hidden></div>
+<script src="/site.js"></script>
+<header class="top">
+  <a class="mark" href="/">Fantasy<span>Hoops</span></a>
+  <nav>
+    <a href="/">Hub</a>
+    <a href="/recap.html">Weekly</a>
+    <a href="/rankings.html" aria-current="page">Rankings</a>
+    <a href="/gauntlet.html">Gauntlet</a>
+    <a href="/teams.html">Teams</a>
+    <a href="/pickup.html">Pickups</a>
+    <a href="/records.html">Records</a>
+  </nav>
+</header>
+
+<section class="hero small">
+  <p class="eyebrow">Rest of the season</p>
+  <h1>Rankings</h1>
+  <p class="lede" id="lede">Every player ranked by how many more fantasy points he should score from here on than a player you could pick up for free.</p>
+</section>
+
+<main>
+  <section>
+    <div class="filters">
+      <div class="seg" role="group" aria-label="Which players">
+        <button data-who="all" aria-pressed="true">All</button>
+        <button data-who="team" aria-pressed="false">On a team</button>
+        <button data-who="free" aria-pressed="false">Free agents</button>
+      </div>
+      <select id="team" aria-label="Fantasy team"><option value="">Every team</option></select>
+      <select id="pos" aria-label="Position"><option value="">Every position</option><option>PG</option><option>SG</option><option>SF</option><option>PF</option><option>C</option></select>
+      <input id="q" type="search" placeholder="Find a player" aria-label="Find a player">
+    </div>
+    <p class="hub-msg" id="msg">Loading players from ESPN</p>
+    <div class="scroll" hidden id="wrap">
+      <table class="ranks">
+        <thead><tr>
+          <th>#</th><th class="left">Player</th><th class="left t">Team</th>
+          <th class="sort" data-key="ppg">This season</th><th class="sort wide" data-key="pre">Preseason</th>
+          <th class="sort" data-key="exp">Expected</th><th class="sort wide" data-key="left">Games left</th><th class="sort" data-key="value" aria-sort="descending">Value</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <button class="btn more" id="more" hidden>Show more</button>
+  </section>
+
+  <section>
+    <div class="head"><h2>How it works</h2></div>
+    <div class="howto">
+      <div><b>Expected</b><p>Points a game from here on. It blends how he's playing this season with his preseason projection, and the projection counts as 4 games. We tested that on last season: after a dozen games, how a player has actually played tells you much more about the rest of his season than any preseason guess.</p></div>
+      <div><b>Value</b><p id="valueHow">Expected points a game above a free pickup, times the games his NBA team has left. A free pickup is the 5th best free agent on that same measure.</p></div>
+      <div><b>What it leaves out</b><p>Injuries. A player who is out is ranked as if he plays every game left, so check the red tag. Preseason numbers come from our draft guide; anyone who wasn't in it uses ESPN's projection.</p></div>
+    </div>
+  </section>
+</main>
+
+<footer><span>fantasyhoops.fun · 2026-27</span><nav aria-label="Archive"><span>Archive</span><a href="/guide.html">Draft guide</a><a href="/draft.html">Draft board</a><a href="/results.html">Draft results</a><a href="/schedule.html">Draft scheduling</a></nav></footer>
+
+<script src="/guide-data.js"></script>
+<script>
+// A preseason projection is worth this many games of this season's play. Measured on last
+// season's games: it predicted the rest of the season best after 6 to 30 games played.
+const PRESEASON_GAMES = 4;
+// A "free pickup" is this good a free agent: the best few go fast, so not the very best one.
+const PICKUP = 5;
+const PAGE = 100;
+
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const plain = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const state = { who: "all", team: "", pos: "", q: "", key: "value", shown: PAGE };
+let rows = [], owners = {};
+
+Promise.all([fetch("/api/players").then(r => r.ok ? r.json() : null).catch(() => null), hub]).then(([pl, d]) => {
+  const msg = document.getElementById("msg");
+  if (!pl) { msg.textContent = "Couldn't reach ESPN just now. Try again in a minute."; return; }
+  owners = Object.fromEntries((d?.teams || []).map(t => [t.id, t.owner]));
+  const select = document.getElementById("team");
+  Object.entries(owners).sort((a, b) => a[1].localeCompare(b[1])).forEach(([id, name]) => select.append(new Option(name, id)));
+
+  const ours = Object.fromEntries(window.GUIDE.players.map(p => [p.id, p.ppg]));
+  rows = pl.players.map(p => {
+    const pre = ours[p.id] ?? (p.espn || null);
+    const exp = pre == null ? p.ppg : (PRESEASON_GAMES * pre + p.gp * p.ppg) / (PRESEASON_GAMES + p.gp);
+    return { ...p, pre, espnPre: !(p.id in ours), exp, search: plain(p.name) };
+  }).filter(p => p.gp > 0 || p.pre);
+  const pickup = rows.filter(p => !p.fantasy).sort((a, b) => b.exp - a.exp)[PICKUP - 1]?.exp || 0;
+  rows.forEach(p => p.value = p.left * (p.exp - pickup));
+  rows.sort((a, b) => b.value - a.value).forEach((p, i) => p.rank = i + 1);
+
+  document.getElementById("lede").textContent += ` Right now a free pickup is worth about ${pickup.toFixed(1)} points a game.`;
+  document.getElementById("valueHow").textContent += ` Right now that's ${pickup.toFixed(1)} a game.`;
+  msg.remove();
+  document.getElementById("wrap").hidden = false;
+  draw();
+});
+
+function draw() {
+  const q = plain(state.q.trim());
+  const list = rows.filter(p => (state.who === "all" || (state.who === "free") === !p.fantasy)
+    && (!state.team || p.fantasy === Number(state.team)) && (!state.pos || p.pos.includes(state.pos)) && (!q || p.search.includes(q)))
+    .sort((a, b) => (b[state.key] ?? -1e9) - (a[state.key] ?? -1e9));
+  const body = document.getElementById("rows");
+  body.replaceChildren();
+  for (const p of list.slice(0, state.shown)) {
+    const tr = el("tr");
+    const who = el("td", "p"), box = el("div"), img = el("img"), text = el("div"), sub = el("small", null, `${p.team} · ${p.pos.join(", ") || "–"}`);
+    img.src = `https://a.espncdn.com/combiner/i?img=/i/headshots/nba/players/full/${p.id}.png&w=104&h=76`;
+    img.alt = ""; img.loading = "lazy"; img.onerror = () => img.style.visibility = "hidden";
+    sub.append(el("span", "own", p.fantasy ? owners[p.fantasy] || "" : "Free agent"));
+    if (p.injury) sub.append(el("em", null, p.injury));
+    if (p.waivers) sub.append(el("span", "wv", "Waivers"));
+    text.append(el("b", null, p.name), sub);
+    box.append(img, text);
+    who.append(box);
+
+    const team = el("td", "t" + (p.fantasy ? "" : " fa"));
+    if (p.fantasy) { const chip = el("i"); chip.style.background = teamColor(p.fantasy); team.append(chip, owners[p.fantasy] || `Team ${p.fantasy}`); }
+    else team.textContent = "Free agent";
+
+    const now = el("td", "num", p.gp ? p.ppg.toFixed(1) : "–");
+    now.append(el("small", null, `${p.gp} game${p.gp === 1 ? "" : "s"}`));
+    const pre = el("td", "num wide", p.pre ? p.pre.toFixed(1) : "–");
+    if (p.espnPre && p.pre) pre.append(el("small", null, "ESPN"));
+    const exp = el("td", "exp", p.exp.toFixed(1));
+    if (p.pre) {
+      const change = p.exp - p.pre;
+      exp.append(el("small", Math.abs(change) < 0.5 ? "" : change > 0 ? "up" : "down", ` ${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(1)}`));
+    }
+    const value = Math.round(p.value);
+    tr.append(el("td", "n", p.rank), who, team, now, pre, exp, el("td", "num wide", p.left),
+      el("td", "val" + (value < 0 ? " neg" : ""), (value > 0 ? "+" : value < 0 ? "−" : "") + fmt(Math.abs(value))));
+    body.append(tr);
+  }
+  if (!list.length) { const tr = el("tr"), td = el("td", "left", "No players match."); td.colSpan = 8; tr.append(td); body.append(tr); }
+  document.getElementById("more").hidden = list.length <= state.shown;
+}
+
+document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  state.who = b.dataset.who; state.shown = PAGE;
+  if (state.who === "free") document.getElementById("team").value = state.team = "";
+  draw();
+}));
+document.getElementById("team").addEventListener("change", e => {
+  state.team = e.target.value; state.shown = PAGE;
+  if (state.team && state.who === "free") document.querySelector('.seg [data-who="all"]').click();
+  else draw();
+});
+document.getElementById("pos").addEventListener("change", e => { state.pos = e.target.value; state.shown = PAGE; draw(); });
+document.getElementById("q").addEventListener("input", e => { state.q = e.target.value; state.shown = PAGE; draw(); });
+document.getElementById("more").addEventListener("click", () => { state.shown += PAGE; draw(); });
+document.querySelectorAll("th.sort").forEach(th => th.addEventListener("click", () => {
+  document.querySelectorAll("th.sort").forEach(x => x.removeAttribute("aria-sort"));
+  th.setAttribute("aria-sort", "descending");
+  state.key = th.dataset.key; draw();
+}));
+</script>
+</body>
+</html>

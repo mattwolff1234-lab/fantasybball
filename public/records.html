@@ -6,30 +6,54 @@
 <title>Records · Fantasy Hoops</title>
 <meta name="description" content="The record book for our fantasy basketball league: biggest single games, best benched games and the most lopsided matchups.">
 <meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="/home.css">
 </head>
 <body>
+<div class="ticker" id="ticker" hidden></div>
+<script src="/site.js"></script>
 <header class="top">
-  <a class="mark" href="/">Fantasy Hoops</a>
+  <a class="mark" href="/">Fantasy<span>Hoops</span></a>
   <nav>
+    <a href="/">Hub</a>
     <a href="/recap.html">Weekly</a>
-    <a href="/#history">History</a>
-    <a href="/records.html">Records</a>
+    <a href="/rankings.html">Rankings</a>
+    <a href="/gauntlet.html">Gauntlet</a>
     <a href="/teams.html">Teams</a>
     <a href="/pickup.html">Pickups</a>
-    <a href="/gauntlet.html">Gauntlet</a>
-    <a href="/guide.html">Draft guide</a>
-    <a href="/draft.html">Draft board</a>
+    <a href="/records.html" aria-current="page">Records</a>
   </nav>
 </header>
 
 <section class="hero small">
   <p class="eyebrow">Since 2018-19</p>
   <h1>Records</h1>
-  <p class="lede">The best, worst and most painful numbers in league history.</p>
+  <p class="lede">Eight seasons of champions, records and painful numbers.</p>
 </section>
 
 <main>
+  <section id="history">
+    <div class="head">
+      <h2>Hall of Fame</h2>
+      <div class="side">
+        <p id="champNote"></p>
+        <button class="arrow" id="champPrev" aria-label="Scroll to newer champions">&larr;</button>
+        <button class="arrow" id="champNext" aria-label="Scroll to older champions">&rarr;</button>
+      </div>
+    </div>
+    <div>
+      <ol class="timeline" id="champs"></ol>
+      <div class="roster" id="roster"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="head"><h2>All-time records</h2><p>Regular season, every year since 2018-19</p></div>
+    <div class="scroll"><table id="records"></table></div>
+  </section>
+
   <section>
     <div class="head"><h2>Biggest single games</h2><p>Most fantasy points by one player in one game, while in a starting lineup</p></div>
     <ol class="games" id="games"></ol>
@@ -71,9 +95,21 @@
       <div><h3>Closest finishes</h3><ol id="closest"></ol></div>
     </div>
   </section>
+  <section>
+    <div class="head"><h2>Worst trades</h2><p>Gap in fantasy points scored after the trade, to the end of that season</p></div>
+    <ol class="trades" id="trades"></ol>
+  </section>
+
+  <section>
+    <div class="head"><h2>Injury luck</h2><p>Fantasy points lost to injuries, compared with the league average that season</p></div>
+    <div class="luck">
+      <div><h3>Hit hardest</h3><ol id="unlucky"></ol></div>
+      <div><h3>Luckiest</h3><ol id="lucky"></ol></div>
+    </div>
+  </section>
 </main>
 
-<footer><span>fantasyhoops.fun</span><a href="/">Home</a></footer>
+<footer><span>fantasyhoops.fun · 2026-27</span><nav aria-label="Archive"><span>Archive</span><a href="/guide.html">Draft guide</a><a href="/draft.html">Draft board</a><a href="/results.html">Draft results</a><a href="/schedule.html">Draft scheduling</a></nav></footer>
 
 <script src="/records-data.js"></script>
 <script>
@@ -143,7 +179,7 @@ const render = D => {
 render(R);
 
 // Each list keeps its length; this season's rows only get in by beating an old one.
-const top = (old, live, order) => [...old, ...(live || [])].sort(order).slice(0, old.length);
+const keepBest = (old, live, order) => [...old, ...(live || [])].sort(order).slice(0, old.length);
 const most = key => (a, b) => b[key] - a[key], least = key => (a, b) => a[key] - b[key];
 const bestPerOwner = (old, live) => {
   const best = {};
@@ -151,14 +187,131 @@ const bestPerOwner = (old, live) => {
   return Object.values(best).sort(most("points"));
 };
 fetch("/api/records").then(r => r.ok ? r.json() : null).then(L => L && render({
-  games: top(R.games, L.games, most("points")),
-  bench: top(R.bench, L.bench, most("points")),
+  games: keepBest(R.games, L.games, most("points")),
+  bench: keepBest(R.bench, L.bench, most("points")),
   owners: bestPerOwner(R.owners, L.owners),
-  high: top(R.high, L.high, most("points")),
-  low: top(R.low, L.low, least("points")),
-  blowouts: top(R.blowouts, L.blowouts, most("margin")),
-  closest: top(R.closest, L.closest, least("margin")),
+  high: keepBest(R.high, L.high, most("points")),
+  low: keepBest(R.low, L.low, least("points")),
+  blowouts: keepBest(R.blowouts, L.blowouts, most("margin")),
+  closest: keepBest(R.closest, L.closest, least("margin")),
 })).catch(() => {});
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="/history-data.js"></script>
+<script>
+// League history, kept in its own scope so its helpers don't clash with the records above.
+(() => {
+const H = window.HISTORY;
+const num = n => Math.abs(n).toLocaleString("en-US");
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const row = (parent, tag, cells) => { const tr = el("tr"); cells.forEach(([text, cls]) => tr.append(el(tag, cls, text))); parent.append(tr); };
+
+const titles = {};
+H.champions.forEach(c => titles[c.champion] = (titles[c.champion] || 0) + 1);
+const most = Object.entries(titles).sort((a, b) => b[1] - a[1])[0];
+document.getElementById("champNote").textContent = `${most[0]} has won ${most[1]} of ${H.champions.length}`;
+
+const table = document.getElementById("records");
+const thead = el("thead"), tbody = el("tbody");
+row(thead, "th", [["Owner"], ["Seasons", "wide"], ["Record"], ["Win %"], ["Titles"], ["Finals"], ["Best finish", "wide"]]);
+const place = n => n + (["th", "st", "nd", "rd"][n % 10 > 3 || (n > 10 && n < 14) ? 0 : n % 10]);
+H.records.forEach(r => row(tbody, "td", [
+  [r.owner, "name"], [r.seasons, "wide"], [`${r.wins}-${r.losses}`],
+  [(100 * r.wins / (r.wins + r.losses)).toFixed(0) + "%"], [r.titles || "–", r.titles ? "gold" : "dim"], [r.finals || "–", r.finals ? "" : "dim"], [place(r.best), "wide"],
+]));
+table.append(thead, tbody);
+
+H.trades.forEach(t => {
+  const li = el("li"), line = el("div", "line");
+  const who = el("b");
+  who.append(t.winner, el("span", "over", " over "), t.loser);
+  line.append(who, el("span", "gap", "+" + num(t.gap)));
+  li.append(line, el("p", null, `${t.winner} got ${t.got}`), el("p", null, `${t.loser} got ${t.gave}`), el("span", "season", t.when));
+  document.getElementById("trades").append(li);
+});
+
+const luck = (id, rows, sign) => rows.forEach(r => {
+  const li = el("li"), line = el("div", "line");
+  line.append(el("b", null, r.owner), el("span", "gap " + (sign > 0 ? "bad" : "good"), (sign > 0 ? "+" : "−") + num(r.vs_average)));
+  li.append(line, el("p", null, `${r.season} · biggest losses: ${r.worst.join(", ")}`));
+  document.getElementById(id).append(li);
+});
+luck("unlucky", H.unlucky, 1);
+luck("lucky", H.lucky, -1);
+
+// Hall of Fame: a sideways timeline of champions. Clicking one drops their roster open underneath.
+const track = document.getElementById("champs"), panel = document.getElementById("roster");
+const still = matchMedia("(prefers-reduced-motion:reduce)").matches;
+const t = seconds => still ? 0 : seconds;
+const TROPHY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 5H5v1a3 3 0 0 0 3 3M16 5h3v1a3 3 0 0 1-3 3M12 13v4M10 17h4v3h-4zM8.5 20h7"/></svg>';
+let open = null, drag = null, dragged = false;
+
+const showRoster = c => {
+  const head = el("div", "line"), who = el("b", null, c.team), list = el("ol", "players");
+  who.append(el("span", "over", " · " + c.champion));
+  head.append(who, el("span", "season", `${c.season} · final roster · fantasy points that season`));
+  c.roster.forEach(p => {
+    const li = el("li"), bar = el("span", "bar"), fill = el("i");
+    fill.style.width = 100 * p.points / c.roster[0].points + "%";
+    bar.append(fill);
+    li.append(el("span", null, p.name), el("span", "pos", p.pos), el("span", "pts", num(p.points)), bar);
+    list.append(li);
+  });
+  const box = el("div", "roster-in");
+  box.append(head, list);
+  panel.replaceChildren(box);
+  gsap.from(list.children, { opacity: 0, y: 14, duration: t(.4), stagger: t(.03), ease: "power2.out", delay: t(.1) });
+  gsap.from(list.querySelectorAll("i"), { scaleX: 0, duration: t(.7), stagger: t(.03), ease: "power3.out", delay: t(.15) });
+};
+
+H.champions.forEach(c => {
+  const li = el("li"), btn = el("button", "champ");
+  let pic;
+  if (c.logo) { pic = el("img", "pic"); pic.src = c.logo; pic.alt = ""; pic.draggable = false; }
+  else { pic = el("span", "pic none"); pic.innerHTML = TROPHY; }
+  btn.append(el("span", "season", c.season), el("span", "dot"), pic, el("b", null, c.team), el("span", "owner", c.champion), el("span", "sub", `${c.record} · beat ${c.runner_up}`));
+  btn.setAttribute("aria-expanded", "false");
+  btn.addEventListener("click", () => {
+    if (dragged) return;
+    const same = open === btn, from = panel.offsetHeight;
+    if (open) open.setAttribute("aria-expanded", "false");
+    gsap.killTweensOf(panel);
+    if (same) {
+      open = null;
+      gsap.to(panel, { height: 0, duration: t(.4), ease: "power2.inOut", onComplete: () => panel.replaceChildren() });
+      return;
+    }
+    open = btn;
+    btn.setAttribute("aria-expanded", "true");
+    showRoster(c);
+    gsap.fromTo(panel, { height: from }, { height: "auto", duration: t(.55), ease: "power3.out" });
+  });
+  li.append(btn);
+  track.append(li);
+});
+
+// Cards rise in one after another the first time the timeline scrolls into view.
+gsap.set(track.children, { opacity: 0, y: 32 });
+new IntersectionObserver((entries, watcher) => {
+  if (!entries[0].isIntersecting) return;
+  watcher.disconnect();
+  gsap.to(track.children, { opacity: 1, y: 0, duration: t(.7), stagger: t(.07), ease: "power3.out" });
+}, { threshold: .2 }).observe(track);
+
+const slide = by => gsap.to(track, { scrollLeft: track.scrollLeft + by, duration: t(.6), ease: "power2.out" });
+document.getElementById("champPrev").addEventListener("click", () => slide(-440));
+document.getElementById("champNext").addEventListener("click", () => slide(440));
+
+// Mouse users can grab the timeline and drag it; a drag must not count as a click on a champion.
+track.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") { drag = { x: e.clientX, left: track.scrollLeft }; dragged = false; } });
+addEventListener("pointermove", e => {
+  if (!drag) return;
+  const moved = e.clientX - drag.x;
+  if (Math.abs(moved) > 5) dragged = true;
+  if (dragged) track.scrollLeft = drag.left - moved;
+});
+addEventListener("pointerup", () => drag = null);
+})();
 </script>
 </body>
 </html>
