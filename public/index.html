@@ -4,222 +4,232 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Fantasy Hoops</title>
-<meta name="description" content="Our fantasy basketball league: draft strategy and eight seasons of league history.">
+<meta name="description" content="Our fantasy basketball league, live: this week's scores, the standings, the Gauntlet and player rankings.">
 <meta name="robots" content="noindex">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://www.fantasyhoops.fun/">
 <meta property="og:title" content="Fantasy Hoops">
-<meta property="og:description" content="Our fantasy basketball league: draft strategy and eight seasons of league history.">
+<meta property="og:description" content="Our fantasy basketball league, live: this week's scores, the standings, the Gauntlet and player rankings.">
 <meta property="og:image" content="https://www.fantasyhoops.fun/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="/home.css">
 </head>
 <body>
+<div class="ticker" id="ticker" hidden></div>
+<script src="/site.js"></script>
 <header class="top">
-  <a class="mark" href="/">Fantasy Hoops</a>
+  <a class="mark" href="/">Fantasy<span>Hoops</span></a>
   <nav>
+    <a href="/" aria-current="page">Hub</a>
     <a href="/recap.html">Weekly</a>
-    <a href="#history">History</a>
-    <a href="/records.html">Records</a>
-    <a href="/teams.html">Teams</a>
+    <a href="/rankings.html">Rankings</a>
     <a href="/gauntlet.html">Gauntlet</a>
-    <a href="/guide.html">Draft guide</a>
-    <a href="/draft.html">Draft board</a>
-    <a href="/schedule.html">Scheduling</a>
+    <a href="/teams.html">Teams</a>
+    <a href="/records.html">Records</a>
   </nav>
 </header>
 
-<section class="hero">
-  <p class="eyebrow">2026-27 season</p>
-  <h1>Fantasy Hoops</h1>
-  <p class="lede">Ten teams, eight seasons, one trophy. Everything about the league in one place.</p>
-  <div class="cta">
-    <a class="btn solid" href="/recap.html">This week's recap</a>
-    <a class="btn" href="#history">League history</a>
-  </div>
-</section>
+<main class="hub">
+  <p class="hub-msg" id="msg">Loading the league from ESPN</p>
 
-<main>
-  <section id="weekWrap" hidden>
-    <div class="head"><h2 id="weekTitle">This week</h2><p id="weekNote"></p></div>
-    <a class="home-week" href="/recap.html">
-      <p class="words" id="weekIntro"></p>
-      <ol class="mini-power" id="weekPower"></ol>
-      <span class="btn">Read the full recap</span>
-    </a>
-  </section>
-
-  <section id="history">
-    <div class="head">
-      <h2>Hall of Fame</h2>
-      <div class="side">
-        <p id="champNote"></p>
-        <button class="arrow" id="champPrev" aria-label="Scroll to newer champions">&larr;</button>
-        <button class="arrow" id="champNext" aria-label="Scroll to older champions">&rarr;</button>
+  <section class="week-top" id="top" hidden>
+    <div class="week-name">
+      <div>
+        <p class="eyebrow" id="day"></p>
+        <h1>Week<br><span id="weekNum"></span></h1>
       </div>
+      <p class="lede" id="weekLine"></p>
     </div>
-    <div>
-      <ol class="timeline" id="champs"></ol>
-      <div class="roster" id="roster"></div>
-    </div>
+    <div class="feature" id="feature"></div>
   </section>
 
-  <section>
-    <div class="head"><h2>All-time records</h2><p>Regular season, every year since 2018-19</p></div>
-    <div class="scroll"><table id="records"></table></div>
-  </section>
+  <section class="scores" id="scores" aria-label="The rest of this week's games" hidden></section>
 
-  <section>
-    <div class="head"><h2>Worst trades</h2><p>Gap in fantasy points scored after the trade, to the end of that season</p></div>
-    <ol class="trades" id="trades"></ol>
-  </section>
+  <div class="split" id="mid" hidden>
+    <section class="wide-col">
+      <h2>Standings</h2>
+      <div class="table" id="standings"></div>
+    </section>
+    <section class="narrow-col watch" id="watch"></section>
+  </div>
 
-  <section>
-    <div class="head"><h2>Injury luck</h2><p>Fantasy points lost to injuries, compared with the league average that season</p></div>
-    <div class="luck">
-      <div><h3>Hit hardest</h3><ol id="unlucky"></ol></div>
-      <div><h3>Luckiest</h3><ol id="lucky"></ol></div>
-    </div>
-  </section>
+  <div class="split">
+    <section class="wide-col story" id="story" hidden></section>
+    <section class="narrow-col heat" id="heat" hidden>
+      <h2>Heating up</h2>
+      <ol id="heatList"></ol>
+      <p class="key">Grey: preseason projection · green: extra points a game · <a href="/rankings.html">Full rankings</a></p>
+    </section>
+  </div>
 </main>
 
-<footer><span>fantasyhoops.fun</span><a href="/schedule.html">Draft scheduling</a></footer>
+<footer><span>fantasyhoops.fun · 2026-27</span><nav aria-label="Archive"><span>Archive</span><a href="/guide.html">Draft guide</a><a href="/draft.html">Draft board</a><a href="/results.html">Draft results</a><a href="/schedule.html">Draft scheduling</a></nav></footer>
 
 <script>
-// The latest weekly recap: its headline and the top of the power rankings.
-fetch("/api/weekly").then(r => r.ok ? r.json() : null).then(async d => {
-  if (!d) return;
-  const w = await fetch(`/recaps/${d.year}/week-${d.week}.json`).then(r => r.ok ? r.json() : null).catch(() => null);
-  const top = [...d.teams].sort((a, b) => b.points - a.points)[0];
-  document.getElementById("weekTitle").textContent = w?.title || `Week ${d.week}: ${top.owner} on top`;
-  document.getElementById("weekNote").textContent = `Week ${d.week} recap · power rankings`;
-  document.getElementById("weekIntro").textContent = w?.intro || `${top.owner} put up ${top.points.toLocaleString("en-US")}, the best score of the week.`;
-  const list = document.getElementById("weekPower");
-  d.teams.slice(0, 5).forEach(t => {
-    const li = document.createElement("li"), b = document.createElement("b"), s = document.createElement("span");
-    b.textContent = `${t.powerRank}. ${t.owner}`;
-    s.textContent = `${t.record[0]}-${t.record[1]}`;
-    li.append(b, s);
-    list.append(li);
-  });
-  document.getElementById("weekWrap").hidden = false;
-}).catch(() => {});
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-<script src="/history-data.js"></script>
-<script>
-const H = window.HISTORY;
-const num = n => Math.abs(n).toLocaleString("en-US");
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
-const row = (parent, tag, cells) => { const tr = el("tr"); cells.forEach(([text, cls]) => tr.append(el(tag, cls, text))); parent.append(tr); };
+const pic = t => { if (!t?.logo) return el("span", "blank"); const i = el("img"); i.src = t.logo; i.alt = ""; return i; };
+const COUNT = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+const and = names => names.length < 2 ? names.join("") : names.slice(0, -1).join(", ") + " and " + names.at(-1);
+const show = id => document.getElementById(id).hidden = false;
 
-const titles = {};
-H.champions.forEach(c => titles[c.champion] = (titles[c.champion] || 0) + 1);
-const most = Object.entries(titles).sort((a, b) => b[1] - a[1])[0];
-document.getElementById("champNote").textContent = `${most[0]} has won ${most[1]} of ${H.champions.length}`;
+hub.then(d => {
+  const msg = document.getElementById("msg");
+  if (!d) { msg.textContent = "Couldn't reach ESPN just now. Try again in a minute."; return; }
+  msg.remove();
+  const by = Object.fromEntries(d.teams.map(t => [t.id, t]));
+  const done = d.games.length > 0 && d.games.every(g => g.final);
+  const daysLeft = d.weekday === 0 ? 1 : 8 - d.weekday;
+  const order = g => [g.home, g.away].sort((x, y) => y.score - x.score);
 
-const table = document.getElementById("records");
-const thead = el("thead"), tbody = el("tbody");
-row(thead, "th", [["Owner"], ["Seasons", "wide"], ["Record"], ["Win %"], ["Titles"], ["Finals"], ["Best finish", "wide"]]);
-const place = n => n + (["th", "st", "nd", "rd"][n % 10 > 3 || (n > 10 && n < 14) ? 0 : n % 10]);
-H.records.forEach(r => row(tbody, "td", [
-  [r.owner, "name"], [r.seasons, "wide"], [`${r.wins}-${r.losses}`],
-  [(100 * r.wins / (r.wins + r.losses)).toFixed(0) + "%"], [r.titles || "–", r.titles ? "gold" : "dim"], [r.finals || "–", r.finals ? "" : "dim"], [place(r.best), "wide"],
-]));
-table.append(thead, tbody);
+  // What a game's score means right now, in a few words.
+  const note = g => {
+    const [a, b] = order(g), gap = a.score - b.score, t = by[a.id];
+    if (g.final) return [gap ? `Final · ${t.owner} won by ${fmt(gap)}` : "Final · a tie", ""];
+    if (!gap) return ["All square", "hot"];
+    if (gap < 50) return [`${t.owner} up ${fmt(gap)} · too close to call`, "hot"];
+    if (t.w === 0 && t.l > 0) return [`${t.owner} up ${fmt(gap)} · first win in sight`, "good"];
+    return [`${t.owner} up ${fmt(gap)}`, ""];
+  };
 
-H.trades.forEach(t => {
-  const li = el("li"), line = el("div", "line");
-  const who = el("b");
-  who.append(t.winner, el("span", "over", " over "), t.loser);
-  line.append(who, el("span", "gap", "+" + num(t.gap)));
-  li.append(line, el("p", null, `${t.winner} got ${t.got}`), el("p", null, `${t.loser} got ${t.gave}`), el("span", "season", t.when));
-  document.getElementById("trades").append(li);
-});
+  // The headline game: the best combined record, and the closer game if two are level.
+  const wins = g => by[g.home.id].w + by[g.away.id].w;
+  const margin = g => Math.abs(g.home.score - g.away.score);
+  const games = [...d.games].sort((a, b) => wins(b) - wins(a) || margin(a) - margin(b));
+  const unbeaten = d.teams.filter(t => t.l === 0 && t.w > 0);
 
-const luck = (id, rows, sign) => rows.forEach(r => {
-  const li = el("li"), line = el("div", "line");
-  line.append(el("b", null, r.owner), el("span", "gap " + (sign > 0 ? "bad" : "good"), (sign > 0 ? "+" : "−") + num(r.vs_average)));
-  li.append(line, el("p", null, `${r.season} · biggest losses: ${r.worst.join(", ")}`));
-  document.getElementById(id).append(li);
-});
-luck("unlucky", H.unlucky, 1);
-luck("lucky", H.lucky, -1);
+  document.getElementById("day").textContent = done ? `${d.date} · week ${d.week} is final` : `${d.date} · ${daysLeft === 1 ? "final day" : daysLeft + " days left"}`;
+  document.getElementById("weekNum").textContent = d.week;
+  if (games.length) {
+    const star = games[0], [a, b] = order(star), ta = by[a.id], tb = by[b.id];
+    const bothUnbeaten = unbeaten.includes(ta) && unbeaten.includes(tb);
+    let line = unbeaten.length > 1 ? `${COUNT[unbeaten.length]} teams are still unbeaten: ${and(unbeaten.map(t => t.owner))}.`
+      : unbeaten.length ? `${unbeaten[0].owner} is the only unbeaten team left.` : `${d.teams[0].owner} leads the league at ${d.teams[0].w}-${d.teams[0].l}.`;
+    if (bothUnbeaten && !done) line += ` Two of them play each other ${daysLeft === 1 ? "tonight" : "this week"}.`;
+    document.getElementById("weekLine").textContent = line;
 
-// Hall of Fame: a sideways timeline of champions. Clicking one drops their roster open underneath.
-const track = document.getElementById("champs"), panel = document.getElementById("roster");
-const still = matchMedia("(prefers-reduced-motion:reduce)").matches;
-const t = seconds => still ? 0 : seconds;
-const TROPHY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0V4z"/><path d="M8 5H5v1a3 3 0 0 0 3 3M16 5h3v1a3 3 0 0 1-3 3M12 13v4M10 17h4v3h-4zM8.5 20h7"/></svg>';
-let open = null, drag = null, dragged = false;
+    const ca = teamColor(a.id), cb = teamColor(b.id), box = document.getElementById("feature"), inner = el("div");
+    box.style.background = `linear-gradient(100deg, ${ca} 0 50%, ${cb} 50% 100%)`;
+    const bar = el("p", "bar-top");
+    bar.append(el("span", null, "Game of the week"), el("b", null, bothUnbeaten ? "Battle of the unbeatens"
+      : ta.w === 0 && tb.w === 0 && ta.l > 0 ? "Battle of the winless" : `${ta.w}-${ta.l} vs ${tb.w}-${tb.l}`));
+    const side = (s, t, color, behind) => {
+      const div = el("div", "fside" + (behind ? " behind" : "")), p = pic(t);
+      p.style.borderColor = color;
+      div.append(p, el("b", null, t.owner), el("small", null, `${t.team} · ${t.w}-${t.l}`), el("strong", null, fmt(s.score)));
+      return div;
+    };
+    const versus = el("div", "versus");
+    versus.append(side(a, ta, ca, false), el("span", "vs", "VS"), side(b, tb, cb, a.score > b.score));
+    const meter = el("div", "meter"), track = el("div", "track"), fa = el("div"), fb = el("div");
+    fa.style.cssText = `width:${100 * a.score / (a.score + b.score || 1)}%;background:${ca}`;
+    fb.style.cssText = `flex:1;background:${cb}`;
+    track.append(fa, fb);
+    let [text] = note(star);
+    if (!star.final) text += bothUnbeaten ? ` · one unbeaten record ends ${daysLeft === 1 ? "tonight" : "this week"}` : daysLeft === 1 ? " · last day of the week" : ` · ${daysLeft} days left`;
+    meter.append(track, el("p", null, text));
+    inner.append(bar, versus, meter);
+    box.append(inner);
 
-const showRoster = c => {
-  const head = el("div", "line"), who = el("b", null, c.team), list = el("ol", "players");
-  who.append(el("span", "over", " · " + c.champion));
-  head.append(who, el("span", "season", `${c.season} · final roster · fantasy points that season`));
-  c.roster.forEach(p => {
-    const li = el("li"), bar = el("span", "bar"), fill = el("i");
-    fill.style.width = 100 * p.points / c.roster[0].points + "%";
-    bar.append(fill);
-    li.append(el("span", null, p.name), el("span", "pos", p.pos), el("span", "pts", num(p.points)), bar);
-    list.append(li);
-  });
-  const box = el("div", "roster-in");
-  box.append(head, list);
-  panel.replaceChildren(box);
-  gsap.from(list.children, { opacity: 0, y: 14, duration: t(.4), stagger: t(.03), ease: "power2.out", delay: t(.1) });
-  gsap.from(list.querySelectorAll("i"), { scaleX: 0, duration: t(.7), stagger: t(.03), ease: "power3.out", delay: t(.15) });
-};
-
-H.champions.forEach(c => {
-  const li = el("li"), btn = el("button", "champ");
-  let pic;
-  if (c.logo) { pic = el("img", "pic"); pic.src = c.logo; pic.alt = ""; pic.draggable = false; }
-  else { pic = el("span", "pic none"); pic.innerHTML = TROPHY; }
-  btn.append(el("span", "season", c.season), el("span", "dot"), pic, el("b", null, c.team), el("span", "owner", c.champion), el("span", "sub", `${c.record} · beat ${c.runner_up}`));
-  btn.setAttribute("aria-expanded", "false");
-  btn.addEventListener("click", () => {
-    if (dragged) return;
-    const same = open === btn, from = panel.offsetHeight;
-    if (open) open.setAttribute("aria-expanded", "false");
-    gsap.killTweensOf(panel);
-    if (same) {
-      open = null;
-      gsap.to(panel, { height: 0, duration: t(.4), ease: "power2.inOut", onComplete: () => panel.replaceChildren() });
-      return;
+    const scores = document.getElementById("scores");
+    for (const g of games.slice(1)) {
+      const card = el("article", "game"), [x, y] = order(g);
+      for (const s of [x, y]) {
+        const row = el("div", "row" + (s === y && x.score > y.score ? " behind" : ""));
+        row.style.borderLeftColor = teamColor(s.id);
+        row.append(pic(by[s.id]), el("b", null, by[s.id].owner), el("strong", null, fmt(s.score)));
+        card.append(row);
+      }
+      const [words, cls] = note(g);
+      card.append(el("p", cls, words));
+      scores.append(card);
     }
-    open = btn;
-    btn.setAttribute("aria-expanded", "true");
-    showRoster(c);
-    gsap.fromTo(panel, { height: from }, { height: "auto", duration: t(.55), ease: "power3.out" });
+    show("top");
+    if (games.length > 1) show("scores");
+  }
+
+  const table = document.getElementById("standings"), head = el("div", "tr th");
+  ["#", "", "", "Team", "W-L", "Points"].forEach((h, i) => head.append(el("span", i > 3 ? "r" : "", h)));
+  table.append(head);
+  d.teams.forEach((t, i) => {
+    const row = el("div", "tr" + (i === d.playoffTeams ? " cut" : "") + (i >= d.playoffTeams ? " miss" : ""));
+    const chip = el("span", "chip"), who = el("div", "who");
+    chip.style.background = teamColor(t.id);
+    who.append(el("b", null, t.owner), el("span", null, t.team));
+    row.append(el("span", "num", i + 1), chip, pic(t), who, el("span", "r", `${t.w}-${t.l}`), el("span", "r soft", fmt(t.points)));
+    table.append(row);
   });
-  li.append(btn);
-  track.append(li);
+  table.append(el("p", "foot", `Orange line: top ${d.playoffTeams} make the playoffs · points are the season total, today included`));
+
+  // The Gauntlet: who would be knocked out if the next cut were today.
+  const watch = document.getElementById("watch"), g = d.gauntlet, alive = g.alive.map(id => by[id]);
+  watch.append(el("h2", null, "Elimination watch"));
+  if (g.next && alive.length) {
+    const last = alive[0], box = el("div", "last"), txt = el("div"), list = el("ol");
+    watch.append(el("p", "sub", `The Gauntlet · lowest season total is out ${g.next.name}`));
+    txt.append(el("b", null, last.owner), el("span", null, `${fmt(last.points)} points · in last`));
+    box.append(pic(last), txt);
+    alive.slice(0, 3).reverse().forEach(t => {
+      const li = el("li"), pts = el("span", null, fmt(t.points));
+      pts.append(el("i", null, t === last ? "last" : "+" + fmt(t.points - last.points)));
+      li.append(el("b", null, t.owner), pts);
+      list.append(li);
+    });
+    watch.append(box, list);
+    if (g.out.length) watch.append(el("p", "sub", "Already out: " + and(g.out.map(o => `${by[o.id].owner} (${o.cut})`))));
+    const clock = el("div", "clock"), count = el("div"), link = el("a", null, "Watch the race");
+    const n = g.next.daysLeft, which = g.out.length ? "next" : "first";
+    count.append(el("strong", null, n || "Last"), el("span", null, n ? `day${n === 1 ? "" : "s"} to the ${which} cut` : `day before the ${which} cut`));
+    count.lastChild.innerHTML = count.lastChild.textContent.replace(" the ", "<br>the ");
+    link.href = "/gauntlet.html";
+    clock.append(count, link);
+    watch.append(clock);
+  } else {
+    watch.append(el("p", "sub", "The Gauntlet is over. Knocked out: " + and(g.out.map(o => `${by[o.id].owner} (${o.cut})`))));
+  }
+  show("mid");
+
+  // Last week's recap: the headline written for it, plus its best score and closest game.
+  const w = d.lastWeek;
+  if (w) fetch(`/recaps/${d.year}/week-${w.week}.json`).then(r => r.ok ? r.json() : null).catch(() => null).then(rec => {
+    const story = document.getElementById("story"), body = el("div", "body"), facts = el("div", "facts");
+    const top = by[w.top.id], win = by[w.closest.winner], lose = by[w.closest.loser];
+    body.append(el("p", "eyebrow", `Week ${w.week} recap`), el("h2", null, rec?.title || `Week ${w.week}: ${top.owner} on top`),
+      el("p", "words", rec?.intro || `${top.owner} put up ${fmt(w.top.points)}, the best score of the week.`));
+    const fact = (label, big, small) => { const f = el("div", "fact"); f.append(el("span", null, label), el("b", null, big), el("small", null, small)); return f; };
+    const go = el("a", "go", "Read it");
+    go.href = `/recap.html?week=${w.week}`;
+    facts.append(fact("Top score", fmt(w.top.points), top.owner), fact("Closest game", fmt(w.closest.gap), `${win.owner} over ${lose.owner}`), go);
+    story.append(body, facts);
+    story.hidden = false;
+  });
 });
 
-// Cards rise in one after another the first time the timeline scrolls into view.
-gsap.set(track.children, { opacity: 0, y: 32 });
-new IntersectionObserver((entries, watcher) => {
-  if (!entries[0].isIntersecting) return;
-  watcher.disconnect();
-  gsap.to(track.children, { opacity: 1, y: 0, duration: t(.7), stagger: t(.07), ease: "power3.out" });
-}, { threshold: .2 }).observe(track);
-
-const slide = by => gsap.to(track, { scrollLeft: track.scrollLeft + by, duration: t(.6), ease: "power2.out" });
-document.getElementById("champPrev").addEventListener("click", () => slide(-440));
-document.getElementById("champNext").addEventListener("click", () => slide(440));
-
-// Mouse users can grab the timeline and drag it; a drag must not count as a click on a champion.
-track.addEventListener("pointerdown", e => { if (e.pointerType === "mouse") { drag = { x: e.clientX, left: track.scrollLeft }; dragged = false; } });
-addEventListener("pointermove", e => {
-  if (!drag) return;
-  const moved = e.clientX - drag.x;
-  if (Math.abs(moved) > 5) dragged = true;
-  if (dragged) track.scrollLeft = drag.left - moved;
+// Heating up: rostered players beating their preseason projection by the most points a game.
+const guide = new Promise(ok => { const s = document.createElement("script"); s.src = "/guide-data.js"; s.onload = () => ok(window.GUIDE); s.onerror = () => ok(null); document.head.append(s); });
+Promise.all([fetch("/api/players").then(r => r.ok ? r.json() : null).catch(() => null), guide, hub]).then(([pl, G, d]) => {
+  if (!pl || !G || !d) return;
+  const owner = Object.fromEntries(d.teams.map(t => [t.id, t.owner]));
+  const pre = Object.fromEntries(G.players.map(p => [p.id, p.ppg]));
+  const hot = pl.players.filter(p => p.fantasy && p.gp >= 5 && pre[p.id]).map(p => ({ ...p, pre: pre[p.id], diff: p.ppg - pre[p.id] }))
+    .sort((a, b) => b.diff - a.diff).slice(0, 5);
+  if (!hot.length) return;
+  const scale = Math.max(...hot.map(p => p.ppg)), list = document.getElementById("heatList");
+  for (const p of hot) {
+    const li = el("li"), who = el("div", "who"), track = el("div", "track"), was = el("i"), gain = el("i");
+    who.append(el("b", null, p.name), el("span", null, owner[p.fantasy] || ""));
+    was.style.cssText = `width:${100 * p.pre / scale}%;background:#4a4e5a`;
+    gain.style.cssText = `width:${100 * p.diff / scale}%;background:var(--good)`;
+    track.append(was, gain);
+    li.append(who, el("strong", null, "+" + p.diff.toFixed(1)), track);
+    list.append(li);
+  }
+  show("heat");
 });
-addEventListener("pointerup", () => drag = null);
 </script>
 </body>
 </html>
