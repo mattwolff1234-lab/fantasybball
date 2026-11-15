@@ -146,7 +146,7 @@ function build(w, recap, hub, art) {
   parts.push(`<table style="width:100%;border-collapse:collapse;font-size:14px">` + awards.map(a =>
     `<tr><td style="${TD};color:#777;width:36%;vertical-align:top">${esc(a.title)}</td><td style="${TD}"><b>${esc(a.owner)}</b> · ${esc(fmt(a.value))} · ${esc(a.detail)}</td></tr>`).join("") + `</table>`);
 
-  parts.push(h2("The roast"));
+  parts.push(h2("Power rankings"));
   parts.push(`<table style="width:100%;border-collapse:collapse;font-size:15px">` + power.map(t => {
     const line = e.bites?.[t.owner] || firstSentence(recap.teams?.[t.owner]);
     return `<tr><td style="${NUM}">${t.powerRank}</td><td style="${TD}"><b>${esc(t.owner)}</b> <span style="color:#777">${t.record[0]}-${t.record[1]}</span>${line ? `<br>${esc(line)}` : ""}</td></tr>`;
