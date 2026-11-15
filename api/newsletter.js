@@ -19,8 +19,8 @@ export default async function handler(req, res) {
   const weekly = await get(`/api/weekly?fresh=${Date.now()}` + (q.get("week") ? `&week=${Number(q.get("week"))}` : ""));
   if (!weekly?.final) return res.status(200).json({ sent: false, why: "No finished week to send." });
   const week = weekly.week, marker = `newsletter/${weekly.year}/week-${week}.json`;
-  // Weeks 1-3 of this season were handled with Gmail drafts.
-  if (!test && weekly.year === 2027 && week < 4) return res.status(200).json({ sent: false, why: `Week ${week} was a Gmail draft.` });
+  // Weeks 1-3 of this season were Gmail drafts, so the daily run skips them; asking for one by ?week=N still sends it.
+  if (!test && !q.get("week") && weekly.year === 2027 && week < 4) return res.status(200).json({ sent: false, why: `Week ${week} was a Gmail draft.` });
   if (!test) {
     const { blobs } = await list({ prefix: marker, limit: 1 });
     if (blobs.length) return res.status(200).json({ sent: false, why: `Week ${week} already went out.` });
