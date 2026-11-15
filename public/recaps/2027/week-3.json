@@ -13,5 +13,50 @@
     "Sean": "Wembanyama scored 447 this week, including the 201, which is now the best single game Sean has had in this league. Kyshawn George, dropped by Max, gave him 303.5 as the waiver hero of the week, and Devin Booker woke up with 279.5. Sean scored 2,508.5, third in the league, and lost to Ben by 16. With the best possible lineup Sean scores 2,617 and wins; Davion Mitchell sat for 123.5. 0-3.",
     "Matt G": "0-3 and last in the power rankings, down two spots. SGA had 379.5 and Deni Avdija 256.5, but the Matts game went to Matt W by 165.5. Zach Edey scored 97.5 on the bench and Andrew Wiggins had 47 in two starts. Zero moves all week. Mack is next, and Mack leads the series 7-5."
   },
-  "preview": "Matt W and Ben, both 3-0, meet with Matt W up 11-9 all-time. Max gets Sean, which has gone Max's way 14 times out of 19. Koren tries for a first win against Sammy, and Matt G against Mack."
+  "preview": "Matt W and Ben, both 3-0, meet with Matt W up 11-9 all-time. Max gets Sean, which has gone Max's way 14 times out of 19. Koren tries for a first win against Sammy, and Matt G against Mack.",
+  "email": {
+    "hook": "Wemby scored 201 in one game and Sean still lost. Max posted the top score of the week, and three teams are still unbeaten.",
+    "facts": [
+      "Wemby's 201 on Nov 4 is tied for the second biggest game in league history. Only Embiid's 206 beats it.",
+      "Sean had the 3rd best score of the week and lost. Mack had the 8th best and won.",
+      "Mack left 221 points on the bench. CJ McCollum alone sat for 139.",
+      "Karan set the best possible lineup every single day and still lost by 95.5.",
+      "Koren made 7 roster moves this week. Matt G made zero."
+    ],
+    "bites": {
+      "Matt W": "Giannis (376) and Jaylen Brown (326.5) carried the battle of the Matts, won by 158.5.",
+      "Max": "Top score of the week, 9-0 against the whole league, and a 452.5-point beating of Dean.",
+      "Ben": "Beat Sean by 16 to stay 3-0, and pickup Saddiq Bey's 102 covered that six times over.",
+      "Dean": "Went from a perfect lineup last week to 0-9 against the whole league this week.",
+      "Karan": "A perfect lineup every day, a loss anyway, and Brandon Miller's 94 for the week didn't help.",
+      "Sammy": "Up to 2-1, while first-round pick Jalen Johnson averaged 41.3 a game.",
+      "Koren": "0-3, and Aaron Wiggins, cut by Koren in week 2, scored 119 for the team that beat Koren.",
+      "Mack": "First win of the season with only the 8th best score, while CJ McCollum's 139 sat on the bench.",
+      "Sean": "Wemby scored 447 with a 201-point game in there, and Sean is still 0-3.",
+      "Matt G": "0-3, zero moves, and Zach Edey scored 97.5 on the bench."
+    },
+    "teaser": "Matt W vs Ben, both 3-0, with Matt W up 11-9 all-time. Koren and Matt G are still hunting for a first win.",
+    "cover": {
+      "title": "201 AND STILL LOST",
+      "scene": "Victor Wembanyama, drawn huge, slams home a dunk so hard the arena scoreboard explodes into the number 201. Down on the court, a tiny referee holds up a sign that says SEAN STILL LOSES, while Nikola Jokic strolls past carrying a banner with Ben's team logo. In the background, Giannis Antetokounmpo flexes on top of a pile of trophies.",
+      "players": [
+        {
+          "id": 5104157,
+          "name": "Victor Wembanyama"
+        },
+        {
+          "id": 3112335,
+          "name": "Nikola Jokic"
+        },
+        {
+          "id": 3032977,
+          "name": "Giannis Antetokounmpo"
+        }
+      ],
+      "teams": [
+        "Ben",
+        "Sean"
+      ]
+    }
+  }
 }
