@@ -1,4 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { list, put } from "@vercel/blob";
 import { SEASON, POS, NBA, BASE, connected, teamsOf } from "../lib/espn.js";
 
 // Late pickups and IR returns. ESPN locks every team's adds and drops at the day's first tip-off, and that
@@ -113,12 +114,17 @@ async function sendMove(body) {
   return { ok: r.ok, status: r.status, data: await r.json().catch(() => null) };
 }
 
-// Who each NBA team plays today and when it tips off.
-async function todaysGames(day) {
+// Every NBA team's games for the season.
+async function proTeams() {
   const r = await fetch(`${BASE}${SEASON}?view=proTeamSchedules_wl`, { headers: { Cookie: cookie() } });
   if (!r.ok) throw new Error("ESPN answered " + r.status);
+  return (await r.json()).settings.proTeams;
+}
+
+// Who each NBA team plays today and when it tips off.
+function todaysGames(teams, day) {
   const games = {};
-  for (const t of (await r.json()).settings.proTeams) {
+  for (const t of teams) {
     const g = (t.proGamesByScoringPeriod[day] || [])[0];
     if (g) games[t.id] = { opp: NBA[g.homeProTeamId === t.id ? g.awayProTeamId : g.homeProTeamId], home: g.homeProTeamId === t.id, at: g.date };
   }
@@ -145,33 +151,56 @@ function shape(entry, games) {
 
 const moveTime = t => t.processDate || t.proposedDate || 0;
 
-// Everything one request needs, read fresh from ESPN. With `add`, only that player is looked up
-// instead of the free-agent list.
-async function load(teamId, add) {
-  const league = await espn(["mTeam", "mRoster", "mSettings", "mStatus", "mMatchupScore"]);
+// This week's pickups, counted the way ESPN counts them: toward the week a pickup starts in. An
+// owner's pickup made after the day's first tip-off starts tomorrow; a league manager's starts at
+// once. Counted like this, the move log gave ESPN's own weekly totals for every team in weeks 2-5.
+// `count` also takes ESPN's own total when that's higher, and it includes league manager moves
+// made in ESPN without counting them.
+async function weekPickups(league) {
   const day = league.scoringPeriodId, week = league.status.currentMatchupPeriod;
   // This week started the day after last week's last scored day.
   const lastWeek = league.schedule.filter(s => s.matchupPeriodId === week - 1)
     .flatMap(s => [s.home, s.away]).flatMap(t => Object.keys(t?.pointsByScoringPeriod || {})).map(Number);
   const firstDay = lastWeek.length ? Math.max(...lastWeek) + 1 : 1;
-  const days = Array.from({ length: Math.max(day - firstDay + 1, 0) }, (_, i) => firstDay + i);
+  // A pickup that starts tomorrow belongs to this week, unless tomorrow is a Monday and a new week.
+  const lastDay = new Date(OPENING + day * 864e5).getUTCDay() === 1 ? day : day + 1;
+  // Yesterday's log too, for Sunday-night pickups that started this week.
+  const days = Array.from({ length: Math.max(day - firstDay + 2, 0) }, (_, i) => firstDay - 1 + i);
+  const [teams, log] = await Promise.all([
+    proTeams(),
+    Promise.all(days.map(d => espn(["mTransactions2"], { scoringPeriodId: d }, { transactions: { filterType: { value: ["FREEAGENT", "WAIVER"] } } })
+      .then(r => r.transactions || []))).then(all => all.flat().filter(t => t.status === "EXECUTED")),
+  ]);
+  const tip = {};
+  for (const t of teams) for (const [d, games] of Object.entries(t.proGamesByScoringPeriod || {}))
+    for (const g of games) tip[d] = Math.min(tip[d] ?? Infinity, g.date);
+  const starts = t => !t.isLeagueManager && moveTime(t) > (tip[t.scoringPeriodId] ?? Infinity) ? t.scoringPeriodId + 1 : t.scoringPeriodId;
+  const moves = [...new Map(log.map(t => [t.id, t])).values()].filter(t => starts(t) >= firstDay && starts(t) <= lastDay);
+  const added = {};
+  for (const t of moves) for (const i of t.items || []) if (i.type === "ADD") added[i.toTeamId] = (added[i.toTeamId] || 0) + 1;
+  const count = id => Math.max(league.teams.find(t => t.id === id)?.transactionCounter?.matchupAcquisitionTotals?.[week] || 0, added[id] || 0);
+  return { week, teams, moves, count };
+}
+
+// Everything one request needs, read fresh from ESPN. With `add`, only that player is looked up
+// instead of the free-agent list.
+async function load(teamId, add) {
+  const league = await espn(["mTeam", "mRoster", "mSettings", "mStatus", "mMatchupScore"]);
+  const day = league.scoringPeriodId;
   const players = add
     ? { players: { filterIds: { value: [add] } } }
     : { players: { filterStatus: { value: ["FREEAGENT", "WAIVERS"] }, limit: 250, sortPercOwned: { sortAsc: false, sortPriority: 1 } } };
   const rosterOn = d => espn(["mRoster"], { forTeamId: teamId, scoringPeriodId: d }).then(r => r.teams.find(t => t.id === teamId).roster);
-  const [games, moves, pool, today, tomorrow] = await Promise.all([
-    todaysGames(day),
-    Promise.all(days.map(d => espn(["mTransactions2"], { scoringPeriodId: d }, { transactions: { filterType: { value: ["FREEAGENT", "WAIVER"] } } })
-      .then(r => r.transactions || []))).then(all => all.flat().filter(t => t.status === "EXECUTED")),
+  const [week, pool, today, tomorrow] = await Promise.all([
+    weekPickups(league),
     espn(["kona_player_info"], { scoringPeriodId: day }, players).then(r => r.players || []),
     rosterOn(day),
     rosterOn(day + 1).catch(() => null),
   ]);
+  const games = todaysGames(week.teams, day), moves = week.moves;
   const team = league.teams.find(t => t.id === teamId);
   team.roster = today;
-  // ESPN's weekly pickup count leaves out league manager moves, so those are counted from the log.
-  const byLM = moves.filter(t => t.isLeagueManager).flatMap(t => t.items || []).filter(i => i.type === "ADD" && i.toTeamId === teamId).length;
-  const used = (team.transactionCounter?.matchupAcquisitionTotals?.[week] || 0) + byLM;
+  const used = week.count(teamId);
   const limit = league.settings.acquisitionSettings.matchupAcquisitionLimit;
   const spots = Object.entries(league.settings.rosterSettings.lineupSlotCounts).reduce((n, [slot, c]) => n + (+slot === IR ? 0 : c), 0);
   const open = team.roster.entries.filter(e => e.lineupSlotId !== IR).length < spots;
@@ -265,9 +294,51 @@ const fail = (res, code, error) => res.status(code).json({ error });
 const OPENS_AT = Date.parse(process.env.PICKUP_OPENS_AT || "2026-11-16T09:00:00-05:00");
 const opensAt = () => Date.now() < OPENS_AT ? OPENS_AT : null;
 
+// Run every hour (vercel.json): emails Matt when a team has more pickups this week than the league
+// allows. It emails once for each new total, so a team going from 5 to 6 gets a second email.
+async function checkLimits(req, res) {
+  const { CRON_SECRET, RESEND_API_KEY, NEWSLETTER_TO } = process.env;
+  if (!CRON_SECRET || req.headers.authorization !== `Bearer ${CRON_SECRET}`) return fail(res, 401, "Not allowed.");
+  const league = await espn(["mTeam", "mSettings", "mStatus", "mMatchupScore"]);
+  const limit = league.settings.acquisitionSettings.matchupAcquisitionLimit;
+  const { week, moves, count } = await weekPickups(league);
+  const over = limit > 0 ? league.teams.filter(t => count(t.id) > limit) : [];
+  const owners = teamsOf(league), emailed = [];
+  for (const t of over) {
+    const n = count(t.id), marker = `pickups/${SEASON}/week-${week}/team-${t.id}-${n}.json`;
+    if ((await list({ prefix: marker, limit: 1 })).blobs.length) continue;
+    const mine = moves.filter(m => (m.items || []).some(i => i.type === "ADD" && i.toTeamId === t.id)).sort((a, b) => moveTime(a) - moveTime(b));
+    const ids = [...new Set(mine.flatMap(m => (m.items || []).map(i => i.playerId)))];
+    const found = ids.length ? await espn(["kona_player_info"], {}, { players: { filterIds: { value: ids } } }).catch(() => ({})) : {};
+    const name = id => (found.players || []).find(p => p.id === id)?.player.fullName || "a player";
+    const when = ms => new Date(ms).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" });
+    const lines = mine.map(m => {
+      const added = (m.items || []).filter(i => i.type === "ADD").map(i => name(i.playerId)).join(" and ");
+      const dropped = (m.items || []).filter(i => i.type === "DROP").map(i => name(i.playerId)).join(" and ");
+      return `${when(moveTime(m))}: added ${added}${dropped ? `, dropped ${dropped}` : ""} (${m.isLeagueManager ? "Pickups page or league manager" : "ESPN app"})`;
+    });
+    const extra = mine.slice(limit).flatMap(m => (m.items || []).filter(i => i.type === "ADD").map(i => name(i.playerId)));
+    const who = owners[t.id];
+    const text = `${who.owner} (${who.team}) has made ${n} pickups in week ${week}. The limit is ${limit}.\n\n`
+      + `This week's pickups:\n${lines.map(l => "- " + l).join("\n")}\n\n`
+      + (extra.length ? `Over the limit: ${extra.join(", ")}. To undo it, drop ${extra.length > 1 ? "them" : "him"} from ${who.owner}'s team as league manager in ESPN.` : "");
+    const r = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: "Fantasy Hoops <pickups@fantasyhoops.fun>", to: NEWSLETTER_TO.split(",")[0].trim(), subject: `Pickup limit: ${who.owner} has ${n} this week`, text }),
+    });
+    if (!r.ok) { console.error("Resend refused the limit email", r.status, await r.text()); continue; }
+    await put(marker, JSON.stringify({ team: t.id, week, pickups: n, at: new Date().toISOString() }), { access: "public", addRandomSuffix: false, allowOverwrite: true, contentType: "application/json" });
+    emailed.push(t.id);
+  }
+  res.status(200).json({ week, limit, over: over.map(t => ({ team: t.id, pickups: count(t.id) })), emailed });
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (!connected()) return fail(res, 503, "The site is not connected to ESPN yet.");
+  if (req.method === "GET" && new URL(req.url, SITE).searchParams.get("check") === "1")
+    return checkLimits(req, res).catch(e => fail(res, 502, "Could not reach ESPN: " + e.message));
   if (req.method === "POST") {
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
     if (body.email != null) return emailLink(res, body.email).catch(() => fail(res, 502, "The email couldn't be sent. Try again in a minute."));
@@ -455,7 +526,8 @@ async function move(req, res, teamId) {
   const result = await sendMove({
     isLeagueManager: true,
     isActingAsTeamOwner: false,
-    skipTransactionCounters: true,
+    // Counts toward the team's weekly limit on ESPN too, so the ESPN app sees it.
+    skipTransactionCounters: false,
     teamId,
     type: "FREEAGENT",
     scoringPeriodId: day,
