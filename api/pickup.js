@@ -178,9 +178,8 @@ async function load(teamId, add) {
   return { league, team, day, games, moves, pool, used, limit, open, blocked: closed(league, team), realign: realign(today, tomorrow) };
 }
 
-// After the lock, a lineup change made in the ESPN app only starts tomorrow, and from then on ESPN
-// checks every move against tomorrow's lineup, so the page's moves get refused. These LINEUP items
-// put tomorrow back to match today; sent first, they let the real move start today.
+// After the lock, a lineup change made in the ESPN app only starts tomorrow. These LINEUP items put
+// tomorrow back to match today.
 function realign(today, tomorrow) {
   if (!tomorrow) return [];
   const later = new Map(tomorrow.entries.map(e => [e.playerId, e.lineupSlotId]));
@@ -188,11 +187,16 @@ function realign(today, tomorrow) {
     .filter(e => later.has(e.playerId) && later.get(e.playerId) !== e.lineupSlotId)
     .map(e => ({ playerId: e.playerId, type: "LINEUP", fromLineupSlotId: later.get(e.playerId), toLineupSlotId: e.lineupSlotId }));
 }
-async function lineUpTomorrow(res, teamId, day, items) {
-  if (!items.length) return true;
-  const result = await rosterMove(teamId, day, items);
-  if (!result.ok) fail(res, 409, "You changed tomorrow's lineup in the ESPN app, and ESPN wouldn't let the page reset it. Undo that change in the app, then try again.");
-  return result.ok;
+// Sometimes ESPN checks the page's moves against tomorrow's lineup and refuses them (seen Nov 15),
+// so a refused move gets tomorrow reset to match today and one more try. The reset isn't sent up
+// front: on Nov 21 ESPN checked it against today and refused it ("already in the F slot"), and
+// when it does go through it wipes out the lineup the manager set for tomorrow.
+async function withRealign(teamId, day, items, send) {
+  const first = await send();
+  if (first.ok || !items.length || first.status === 401 || first.status === 403) return { ...first, realigned: false };
+  const reset = await rosterMove(teamId, day, items);
+  if (!reset.ok) return { ...first, realigned: false };
+  return { ...await send(), realigned: true };
 }
 
 // The Gauntlet's cuts, same rules as gauntlet.html: each counts games through the Sunday before it,
@@ -399,15 +403,14 @@ async function activate(res, teamId, backId, drop, sitId) {
   const plan = sit ? { items: [lineupItem(sit, BENCH), lineupItem(back, sit.lineupSlotId)], slot: sit.lineupSlotId } : placement(league, entries, back, out);
   if (!plan) return fail(res, 409, `There's no spot ${name} can play in after that move. Try dropping someone else.`);
 
-  if (!await lineUpTomorrow(res, teamId, day, realign)) return;
-  const result = await rosterMove(teamId, day, [...(out ? [{ playerId: drop, type: "DROP", fromTeamId: teamId }] : []), ...plan.items]);
+  const result = await withRealign(teamId, day, realign, () => rosterMove(teamId, day, [...(out ? [{ playerId: drop, type: "DROP", fromTeamId: teamId }] : []), ...plan.items]));
   if (!result.ok) return fail(res, 409, refusal(result));
   res.status(200).json({
     ok: true,
     back: { ...shape(back.playerPoolEntry, games), slot: SLOT[plan.slot] || "" },
     dropped: out ? out.playerPoolEntry.player.fullName : null,
     sat: sit ? sit.playerPoolEntry.player.fullName : null,
-    realigned: realign.length > 0,
+    realigned: result.realigned,
   });
 }
 
@@ -451,8 +454,7 @@ async function move(req, res, teamId) {
     sit = check.sit;
   }
 
-  if (!await lineUpTomorrow(res, teamId, day, realign)) return;
-  const result = await sendMove({
+  const result = await withRealign(teamId, day, realign, () => sendMove({
     isLeagueManager: true,
     isActingAsTeamOwner: false,
     skipTransactionCounters: true,
@@ -464,10 +466,10 @@ async function move(req, res, teamId) {
       { playerId: add, type: "ADD", toTeamId: teamId },
       ...(drop ? [{ playerId: drop, type: "DROP", fromTeamId: teamId }] : []),
     ],
-  });
+  }));
   if (!result.ok) return fail(res, 409, refusal(result));
   const placed = (result.data?.items || []).find(i => i.type === "ADD" && i.playerId === add);
-  let slot = placed ? placed.toLineupSlotId : BENCH, sat = null, benched = null;
+  let slot = placed ? placed.toLineupSlotId : BENCH, sat = null, benched = null, realigned = result.realigned;
   // A late pickup lands on the bench. If he still plays today, put him in the lineup: in the spot
   // the dropped starter left, or in place of the starter the manager chose.
   if (tonight && !starting(slot)) {
@@ -478,7 +480,8 @@ async function move(req, res, teamId) {
       ? { items: [lineupItem(sit, BENCH), lineupItem(me, sit.lineupSlotId)], slot: sit.lineupSlotId }
       : placement(league, after, me, null, STARTING);
     if (plan) {
-      const lineup = await rosterMove(teamId, day, plan.items);
+      const lineup = await withRealign(teamId, day, realigned ? [] : realign.filter(i => i.playerId !== drop), () => rosterMove(teamId, day, plan.items));
+      realigned ||= lineup.realigned;
       if (lineup.ok) { slot = plan.slot; sat = sit ? sit.playerPoolEntry.player.fullName : null; }
       else benched = true;
     }
@@ -489,7 +492,7 @@ async function move(req, res, teamId) {
     dropped: out ? out.playerPoolEntry.player.fullName : null,
     sat,
     benched,
-    realigned: realign.length > 0,
+    realigned,
     used: used + 1,
     limit,
   });
