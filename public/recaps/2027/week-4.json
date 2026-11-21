@@ -1,0 +1,50 @@
+{
+  "title": "Sean wakes up, Ben stands alone",
+  "intro": "Sean, winless and twice robbed, put up 2,734.5, the best score any team has posted this season, and buried Max by 442 for a first win. Ben beat Matt W by 478.5 and is now the only unbeaten team in the league. Koren is the only winless one, after losing to Sammy by 31 on a day Scottie Barnes scored 100 that did not count. Cade Cunningham had the game of the week, 156 on Nov 12, the second biggest game of the season.",
+  "teams": {
+    "Ben": "4-0 and alone at the top. Ben beat Matt W by 478.5, the biggest margin of the week, and set the best possible lineup every single day. Alperen Sengun had 397.5, Jokic 321.5 and Franz Wagner 308.5, and Grayson Allen added 87.5 as a pickup. Josh Hart had 70 in three games, which is the only thing to complain about. Mack is next, and Ben leads that series 14-7.",
+    "Matt W": "First loss of the season, and a big one: 478.5 to Ben with the seventh best score of the week. Karl-Anthony Towns had 378, Giannis 307 and Kevin Durant 265.5. Trey Murphy III was in the lineup for three games and gave Matt W zero points. Matt W also left 91 on the bench, the most in the league, with Alex Sarr sitting for 51. Next is Max, who leads the series 15-6 and beat Matt W in last year's playoffs.",
+    "Max": "The heartbreaker of the week. Max scored 2,292.5, fifth in the league, and still lost to Sean by 442. Cooper Flagg had 295.5, Isaiah Hartenstein 246.5 and Stephon Castle 243.5, and Jared McCain, cut by Karan last week, gave Max 129.5. Yves Missi had 36 in two starts. Max is 3-1 and gets Matt W next.",
+    "Karan": "Beat Dean by 318.5 with the third best score of the week to get back to 2-2. Luka had 315, Dylan Harper 278.5 and Jamal Murray 269. Karan picked up Zaccharie Risacher, cut by Koren last week, got 63 in two starts and cut him too. Next is Sean, and the two have never played each other in this league.",
+    "Sammy": "3-1 and the luckiest team in the league. Sammy beat Koren by 31 with only the sixth best score of the week, and has scored the second fewest points of anyone this season. Brunson had 308 and Bam 257, and Daniss Jenkins was streamed for 103. Tristan da Silva started two games and scored zero. Dean is next, and Dean leads that series 3-1.",
+    "Sean": "Finally. Sean scored 2,734.5, the best score by any team this season, went 9-0 against the league and beat Max by 442 for a first win. Wemby had 445.5, including 148.5 on Nov 9, Devin Booker 278 and Cameron Boozer 263. CJ McCollum, last seen sitting on Mack's bench for 139, scored 137.5 as the waiver hero of the week. Sean also played the most starter games in the league, 50, with a perfect lineup every day. 1-3 and up three spots in the power rankings.",
+    "Dean": "Cade Cunningham scored 156 on Nov 12, the second biggest game of the season, and Dean lost to Karan by 318.5 anyway. That is two losses in a row and the ninth best score of the week. James Harden, a third-round pick, averaged 49.3 a game, the worst of any early pick this week. Ja'Kobe Walter had 39 in two starts as a pickup. Dean drops three spots in the power rankings.",
+    "Matt G": "First win of the season. Matt G beat Mack by 339 with the fourth best score of the week, and had the best single day of anyone, 628.5 on Wednesday. Shai Gilgeous-Alexander had 326, Amen Thompson 251.5 and Deni Avdija 248.5. Evan Mobley, who had 276 in week 2, managed 70.5 in four games. Koren is next, and Matt G leads that series 9-5.",
+    "Koren": "0-4, the only winless team left, and the unluckiest team in the league. Koren lost to Sammy by 31 while Scottie Barnes scored 100 on Sunday from the injured list, which means none of it counted. That is two straight weeks with a 100-point game wasted, after Jayson Tatum's 105.5 in week 3. Anthony Davis had 371.5 and Darryn Peterson 269.5. Next is Matt G, who leads the series 9-5.",
+    "Mack": "Lowest score of the week, 2,002.5, and a 339-point loss to Matt G. Mack made zero moves all week, and LeBron's 74.5 on Sunday sat on the bench. Pascal Siakam had 297 and Cedric Coward 267.5. Morez Johnson Jr. had 47 in four starts. Next is Ben, the last unbeaten team."
+  },
+  "preview": "Max and Matt W, both 3-1, meet again after Max won their playoff matchup last year, and Max leads the series 15-6. Ben puts 4-0 on the line against Mack. Sean and Karan play each other for the first time ever, and Koren tries for a first win against Matt G.",
+  "email": {
+    "hook": "Sean put up the best score of the season and finally won a game. Ben is the last unbeaten team after beating Matt W by 478.5.",
+    "facts": [
+      "Sean scored 2,734.5, the best score by any team this season, one week after losing with the third best score.",
+      "Sammy is 3-1 despite scoring the second fewest points in the league so far.",
+      "Scottie Barnes scored 100 for Koren on Sunday from the injured list. None of it counted, and Koren lost by 31.",
+      "Matt W had Trey Murphy III in the lineup for three games and got zero points.",
+      "Jared McCain, cut by Karan last week, scored 129.5 for Max."
+    ],
+    "bites": {
+      "Ben": "Beat Matt W by 478.5 points and is now the only unbeaten team in the league.",
+      "Matt W": "Lost to Ben by 478.5 points. Trey Murphy III started three games and scored zero points.",
+      "Max": "Scored the 5th most points in the league and still lost to Sean by 442.",
+      "Karan": "Beat Dean by 318.5 behind 315 points from Luka. Plays Sean next for the first time ever.",
+      "Sammy": "3-1 despite scoring the second fewest points in the league so far. Beat Koren by just 31.",
+      "Sean": "Best team score of the season, 2,734.5 points, and a first win at last, over Max by 442.",
+      "Dean": "Cade Cunningham scored 156 in one game and Dean still lost to Karan by 318.5.",
+      "Matt G": "First win of the season, beating Mack by 339 with 326 points from Shai Gilgeous-Alexander.",
+      "Koren": "Still winless at 0-4. Scottie Barnes scored 100 on Koren's injured list during a 31-point loss.",
+      "Mack": "Lowest score in the league, a 339-point loss to Matt G, and LeBron's 74.5 stuck on the bench."
+    },
+    "teaser": "Max and Matt W, both 3-1, meet again after Max won their playoff matchup last year. Sean and Karan play each other for the first time ever.",
+    "cover": {
+      "title": "SEAN WAKES UP",
+      "scene": "Victor Wembanyama, drawn enormous, swats Cooper Flagg's layup clean into the upper deck while the arena scoreboard flashes FIRST WIN. CJ McCollum swoops in from the side wearing a superhero cape, having escaped from a bench with Mack's logo on it.",
+      "players": [
+        {"id": 5104157, "name": "Victor Wembanyama"},
+        {"id": 5041939, "name": "Cooper Flagg"},
+        {"id": 2490149, "name": "CJ McCollum"}
+      ],
+      "teams": ["Sean", "Max", "Mack"]
+    }
+  }
+}

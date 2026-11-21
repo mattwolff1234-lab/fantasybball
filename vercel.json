@@ -1,4 +1,7 @@
 {
-  "crons": [{ "path": "/api/newsletter", "schedule": "0 15 * * *" }],
+  "crons": [
+    { "path": "/api/newsletter", "schedule": "0 15 * * *" },
+    { "path": "/api/pickup?check=1", "schedule": "0 * * * *" }
+  ],
   "functions": { "api/newsletter.js": { "maxDuration": 300 } }
 }
